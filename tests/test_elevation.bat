@@ -1,0 +1,106 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: ========================================
+::  Тесты повышения привилегий
+::  ВНИМАНИЕ: требуют ручного подтверждения UAC
+:: ========================================
+
+set "BUILD_DIR=%~dp0.."
+set "RUN_EXE=%BUILD_DIR%\run.exe"
+
+echo.
+echo ========================================
+echo   Тесты повышения привилегий
+echo ========================================
+echo [!] Эти тесты требуют ручного подтверждения UAC
+echo     Нажмите «Да» в каждом диалоге
+echo.
+
+if not exist "%RUN_EXE%" (
+    echo [!] run.exe не найден. Запуск сборки...
+    call "%BUILD_DIR%\build.bat"
+)
+
+:: ---------- Тест 1: Проверка текущего уровня прав ----------
+echo ----------------------------------------
+echo   Тест 1: Определение текущих прав
+echo ----------------------------------------
+echo Запуск run.exe БЕЗ флага -a (должен завершиться без UAC)...
+"%RUN_EXE%" cmd.exe /c "whoami /priv >nul & exit 0" >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [OK] Запуск без повышения прав работает
+) else (
+    echo [FAIL] Код ошибки: !errorlevel!
+)
+
+:: ---------- Тест 2: Запуск с повышением прав ----------
+echo.
+echo ----------------------------------------
+echo   Тест 2: Запуск с флагом -a (UAC)
+echo ----------------------------------------
+echo [!] Будет показано окно UAC — подтвердите запуск
+set /p "confirm=Продолжить? (y/n): "
+if /i not "!confirm!"=="y" (
+    echo [SKIP] Тест пропущен по запросу
+    goto :test3
+)
+
+"%RUN_EXE%" -a cmd.exe /c "echo elevated & exit 0" >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [OK] Запуск с повышением прав успешен
+) else (
+    echo [FAIL] Код ошибки: !errorlevel!
+    echo        Возможно, UAC было отклонено
+)
+
+:test3
+:: ---------- Тест 3: Скрытый запуск с правами ----------
+echo.
+echo ----------------------------------------
+echo   Тест 3: Скрытый запуск с правами (-h -a)
+echo ----------------------------------------
+echo [!] Будет показано окно UAC — подтвердите запуск
+set /p "confirm=Продолжить? (y/n): "
+if /i not "!confirm!"=="y" (
+    echo [SKIP] Тест пропущен по запросу
+    goto :test4
+)
+
+set "TMPFILE=%TEMP%\runas_elevated_!random!.txt"
+"%RUN_EXE%" -h -a cmd.exe /c "echo ELEVATED_OK > %TMPFILE" >nul 2>&1
+timeout /t 3 /nobreak >nul 2>&1
+
+if exist "%TMPFILE%" (
+    findstr /C:"ELEVATED_OK" "%TMPFILE%" >nul 2>&1
+    if !errorlevel! equ 0 (
+        echo [OK] Скрытый запуск с правами успешен
+        del "%TMPFILE%" >nul 2>&1
+    ) else (
+        echo [FAIL] Файл создан, но содержимое неверно
+        del "%TMPFILE%" >nul 2>&1
+    )
+) else (
+    echo [FAIL] Файл не создан (возможно, UAC отклонено)
+)
+
+:test4
+:: ---------- Тест 4: Проверка работы без UAC (если уже админ) ----------
+echo.
+echo ----------------------------------------
+echo   Тест 4: Повторный запрос прав (уже админ?)
+echo ----------------------------------------
+echo Запуск whoami для проверки текущего пользователя...
+"%RUN_EXE%" cmd.exe /c "whoami /user" >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [OK] whoami выполнен
+) else (
+    echo [FAIL] Код ошибки: !errorlevel!
+)
+
+echo.
+echo ========================================
+echo   Тесты повышения завершены
+echo ========================================
+echo.
+pause
