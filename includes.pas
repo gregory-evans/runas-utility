@@ -356,7 +356,7 @@ const
                 'Copyright (c) 2026 grigorii.evseev@outlook.com'+#10#13+
                 ' '+#10#13+
                 'Usage:'+#10#13;
-    TXT_HELP_2 = ' [-h | -m | -M | -n* | -?] [-a] COMMAND [PARAM1 "PARAM 2" ...]'+#10#13+
+    TXT_HELP_2 = ' [-h | -m | -M | -n* | -w] [-a] COMMAND [PARAM1 "PARAM 2" ...]'+#10#13+
                 #10#13+
                 'COMMAND    - Command for run'+#10#13+
                 'PARAMETERS - Parameters for run command'+#10#13+
@@ -366,6 +366,7 @@ const
                 '    -m  Run minimized.'+#10#13+
                 '    -M  Run maximized.'+#10#13+
                 '    -n  Run normal. Default option.'+#10#13+
+                '    -w  Run without console window (CREATE_NO_WINDOW).'+#10#13+
                 '    -a  Run as Administrator.'+#10#13+
                 '    -?  Print help.';
     TXT_UAC_DENIED = 'Elevation failed: user rejected the UAC prompt or the elevated launch did not start.';
@@ -398,13 +399,13 @@ function MultiByteToWideChar(CodePage: UINT; dwFlags: DWORD; lpMultiByteStr: LPC
 procedure PrintHelpAndExit(exitCode: WORD);
 function AnsiToWide(const value: string): WideString;
 function Quoted(value: string): string;
-function RunCommand(mode: WORD; commandLine: string): boolean;
+function RunCommand(creationFlags: DWORD; mode: WORD; commandLine: string): boolean;
 procedure Error(exitCode: WORD);
 function IsRunningAsAdmin(): boolean;
 function WriteMMF(mmfHandle: THandle; mmfSize: integer; value: string): boolean;
 function ReadMMF(mmfHandle: THandle; const mmfSize: integer): string;
 function Waiting(event: THandle; const TIMEOUT: integer): boolean;
-function ShellExec(const command, parameters: string): boolean;
+function ShellExec(const command, parameters: string; noWindow: boolean): boolean;
 function StringMode(mode: WORD): string;
 { Только то, что реально используется в run.pas — остальное из sysutils не тянем }
 function IntToStr(Value: QWord): string;
@@ -559,7 +560,7 @@ begin
 end; { AnsiToWide() }
 
 { Запуск процесса с повышением прав. Скрыто. ShellExecuteExW }
-function ShellExec(const command, parameters: string): boolean;
+function ShellExec(const command, parameters: string; noWindow: boolean): boolean;
 var
     sei: TShellExecuteInfoW;
     wPath: WideString;
@@ -569,8 +570,12 @@ begin
     sei.cbSize := SizeOf(sei);
     sei.Wnd := 0;
     { NOCLOSEPROCESS — чтобы проверить hProcess и отличить успешный запуск
-      от отказа пользователя в диалоге UAC }
-    sei.fMask := SEE_MASK_FLAG_DDEWAIT or SEE_MASK_FLAG_NO_UI or SEE_MASK_NOCLOSEPROCESS;
+      от отказа пользователя в диалоге UAC; NO_CONSOLE — не создавать консоль
+      у элевированной копии при -w }
+    if noWindow then
+        sei.fMask := SEE_MASK_FLAG_DDEWAIT or SEE_MASK_FLAG_NO_UI or SEE_MASK_NOCLOSEPROCESS or SEE_MASK_NO_CONSOLE
+    else
+        sei.fMask := SEE_MASK_FLAG_DDEWAIT or SEE_MASK_FLAG_NO_UI or SEE_MASK_NOCLOSEPROCESS;
     sei.lpVerb := 'runas';
     wPath := AnsiToWide(command);
     sei.lpFile := PWideChar(wPath);
@@ -626,8 +631,9 @@ begin
     end; {while}
 end; { IntToHex() }
 
-{ Запустить команду }
-function RunCommand(mode: WORD; commandLine: string): boolean;
+{ Запустить команду. creationFlags — флаги CreateProcess: обычно CREATE_NEW_CONSOLE,
+  при -w — CREATE_NO_WINDOW (консоль у дочернего процесса не создаётся вовсе) */}
+function RunCommand(creationFlags: DWORD; mode: WORD; commandLine: string): boolean;
 var
     si: TStartupInfo;
     pi: TProcessInformation;
@@ -637,7 +643,7 @@ begin
     si.dwFlags := STARTF_USESHOWWINDOW;
     si.wShowWindow := mode;
     result := CreateProcess(nil, PChar(commandLine), nil, nil, False,
-                            CREATE_NEW_CONSOLE, nil, nil, si, pi);
+                            creationFlags, nil, nil, si, pi);
 end; { RunCommand() }
 
 { Вывести помошь и выйти с кодом возврата }

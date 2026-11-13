@@ -12,16 +12,14 @@ A **Free Pascal** command-line utility that launches programs with optional **ad
 
 ### Source Files
 
-| `run.pas` | Main program entry point; argument parsing, flow dispatch (`NormalStart`, `ElevatedStart`, `StartElevationProcess`, `RunTarget`) |
+| Файл | Роль |
 |---|---|
-| `run.pas` | Main program entry point; argument parsing, flow dispatch (`NormalStart`, `ElevatedStart`, `StartElevationProcess`) |
+| `run.pas` | Main program entry point; argument parsing, flow dispatch (`NormalStart`, `ElevatedStart`, `StartElevationProcess`, `RunTarget`) |
 | `includes.pas` | Unit with all Windows API declarations, type definitions, constants, and helper functions (MMF I/O, process creation, token queries) |
 
 1. Parent parses flags → if `-a` is set and current token is not elevated, creates a named **Memory-Mapped File** (`Local\mmf_<pid>_<suffix>`) and a named **Event** (`Global\event_<pid>_<suffix>`, suffix = `UniqueSuffix()`)
-
-1. Parent parses flags → if `-a` is set and current token is not elevated, creates a named **Memory-Mapped File** (`Local\mmf_<pid>`) and a named **Event** (`Global\event_<pid>`)
 2. Command line string is written into the MMF
-3. A copy of itself is launched via `ShellExecuteExW` with verb `runas` and marker `--elevated`
+3. A copy of itself is launched via `ShellExecuteExW` with verb `runas` and marker `--elevated`; the 5th argument carries the `-w` flag (1/0)
 4. Parent waits on the Event (10s timeout); child reads the MMF, signals the Event, and executes the command
 
 ### Key Constants
@@ -51,7 +49,7 @@ del *.o *.ppu *.a      { cleanup intermediates }
 ## Running
 
 ```bat
-run.exe [-h | -m | -M | -n] [-a] COMMAND [PARAM1 "PARAM 2" ...]
+run.exe [-h | -m | -M | -n] [-w] [-a] COMMAND [PARAM1 "PARAM 2" ...]
 ```
 
 | Flag | Window mode | Description |
@@ -60,6 +58,7 @@ run.exe [-h | -m | -M | -n] [-a] COMMAND [PARAM1 "PARAM 2" ...]
 | `-m` | `SW_MINIMIZE` | Minimized to tray |
 | `-M` | `SW_MAXIMIZE` | Full-screen |
 | `-h` | `SW_HIDE` | Hidden launch |
+| `-w` | — | No console window at all (`CREATE_NO_WINDOW`; with `-a` also `SEE_MASK_NO_CONSOLE` for the elevated copy) |
 | `-a` | — | Elevate to Administrator via UAC |
 | `-?` / `-H` | — | Print help and exit (code 102) |
 

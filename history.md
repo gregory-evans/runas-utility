@@ -78,14 +78,23 @@
 - Бинарник уменьшился вдвое: 97280 → 47104 байта.
 - Исправлены недочёты при переносе: `mt_index` и `OldRandSeed` были объявлены как `const`, хотя присваиваются (FPC 3.2.2 это терпит, но нестандартно) — вынесены в `var`; хрупкий guard `{$ifdef FPC_HAS_FEATURE_RANDOM}` удалён (символ определён не во всех версиях FPC); `{$R-}{$Q-}` ограничены только блоком генератора; код приведён к стилю проекта (отступы, закрывающие комментарии `end; { Name() }`, единый регистр).
 
+**14. Поддержка `CREATE_NO_WINDOW` — флаг `-w` (`includes.pas`, `run.pas`, tests)**
+- `TApp.noWindow`; парсер принимает `-w`. `RunTarget()` передаёт в CreateProcess `CREATE_NO_WINDOW` вместо `CREATE_NEW_CONSOLE` при `-w` (консоль у цели не создаётся вовсе, в отличие от `-h` = SW_HIDE).
+- Протокол элевации расширен: 5-й аргумент (`1`/`0`) передаёт флаг в элевированный процесс; `ElevatedStart()` читает его (отсутствует — False). При `-w -a` у элевированной копии обёртки дополнительно выставляется `SEE_MASK_NO_CONSOLE`.
+- Справка обновлена (`TXT_HELP_2`); новый Тест 13 в test_parameters.bat.
+
+**15. CI: GitHub Actions workflow (`.github/workflows/build.yml`)**
+- Сборка на `windows-latest` при каждом push/PR: FPC ставится через Chocolatey (последняя стабильная версия — заодно страхует от регрессий на новых FPC, как с `FPC_HAS_FEATURE_RANDOM`), запускается `build.bat`, `run.exe` загружается артефактом.
+
 ### Файлы
 
 | Файл | Изменение |
 |---|---|
-| `includes.pas` | `AnsiToWide()`, коды 116/117/118, `stdcall` для всех WinAPI, `ShellExec`: `SEE_MASK_NOCLOSEPROCESS` + проверка `hProcess`; перегрузка `IntToStr(Value: DWORD)`; `GetProgramPart()`/`ProgramExists()` с ленивым разрешением `FileExistsA`; встроенный генератор случайных чисел (Mersenne Twister) и `IntToStr`/`IntToHex` вместо unit sysutils |
-| `run.pas` | глобальная `commandLine`, новый парсинг флагов в `NormalStart`, код 116; при неудаче элевации — сообщение + код 117; `Randomize` при старте, `UniqueSuffix()` в именах MMF/Event; общая процедура `RunTarget()`; состояние собрано в структуру `TApp` (`app`) |
+| `includes.pas` | `AnsiToWide()`, коды 116/117/118, `stdcall` для всех WinAPI, `ShellExec`: `SEE_MASK_NOCLOSEPROCESS` + проверка `hProcess` (+ `SEE_MASK_NO_CONSOLE` при `-w`); перегрузка `IntToStr(Value: DWORD)`; `GetProgramPart()`/`ProgramExists()` с ленивым разрешением `FileExistsA`; встроенный генератор случайных чисел (Mersenne Twister) и `IntToStr`/`IntToHex` вместо unit sysutils; `RunCommand(creationFlags, ...)` |
+| `run.pas` | глобальная `commandLine`, новый парсинг флагов в `NormalStart`, код 116; при неудаче элевации — сообщение + код 117; `Randomize` при старте, `UniqueSuffix()` в именах MMF/Event; общая процедура `RunTarget()`; состояние собрано в структуру `TApp` (`app`); флаг `-w` (поле `noWindow`, передача 5-м аргументом элевированному процессу) |
 | `tests/run_tests.bat` | фикс `%TMPFILE%`, цикл ожидания Test 9, пайп для проверки help, опечатка в отчёте |
-| `tests/test_parameters.bat` | фикс `%TMPFILE%`, ожидание файла Test 2, код 116 (Test 7), новые Test 11–12 |
+| `tests/test_parameters.bat` | фикс `%TMPFILE%`, ожидание файла Test 2, код 116 (Test 7), новые Test 11–12; Тест 13 (запуск `-w`) |
+| `.github/workflows/build.yml` | CI: сборка на windows-latest при push/PR, FPC из Chocolatey, артефакт run.exe |
 | `tests/test_build.bat`, `tests/test_elevation.bat` | скобки в `echo` внутри if-блоков |
 | `README.md` | коды 116/117, правило распознавания флагов, статусы пунктов 1–5 и 11 рекомендаций, пометка о битности сборки |
 | `QWEN.md` | поправка описания `{$H+}`, коды 101–117, stdcall, обновлённые ограничения (отказ UAC — исправлено) |
@@ -109,3 +118,4 @@
 - Структура `TApp`: после рефакторинга все сценарии прошли без изменений (12/12, 13/13+SKIP); элевация подтверждена по уровню целостности дочернего процесса (`S-1-16-12288` = High).
 - Проверка существования: unit-тест `ProgramExists()` через подстановочную функцию — несуществующий путь → False (путь к коду 118), существующий → True, голое имя → True (пропуск). На этой машине экспорт `FileExistsA` отсутствует, поэтому проверка корректно пропускается (несуществующий путь даёт прежний код 104).
 - Удаление sysutils: сборка без предупреждений (940 строк), все сьюиты зелёные (12/12, 13/13+SKIP); два элевированных запуска дали разные имена MMF (`Local\mmf_4536_57853260`, `Local\mmf_17940_22F1A842`), оба дочерних процесса отработали; размер бинарника 97280 → 47104 байта.
+- Флаг `-w`: цель с `-w` и элевированная цель с `-w -a` выполнили команду и записали файл (проверено end-to-end); test_parameters теперь 13/13, run_tests 13/13+SKIP.

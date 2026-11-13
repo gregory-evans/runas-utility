@@ -212,6 +212,24 @@ if !errorlevel! equ 0 (
 )
 rmdir /s /q "%SPACED_DIR%" >nul 2>&1
 
+:: ---------- Тест 13: Запуск без окна (-w) ----------
+echo ----------------------------------------
+echo   Test 13: Run without console window (-w)
+echo ----------------------------------------
+set /a total+=1
+set "NOWIN_FILE=%TEMP%\runas_nowin.txt"
+del "%NOWIN_FILE%" >nul 2>nul
+"%RUN_EXE%" -w cmd.exe /c "echo NOWIN-OK > %NOWIN_FILE% 2>&1" >nul 2>&1
+ping -n 3 127.0.0.1 >nul
+if exist "%NOWIN_FILE%" (
+    echo [PASS]
+    set /a passed+=1
+) else (
+    echo [FAIL] child did not write file
+    set /a failed+=1
+)
+del "%NOWIN_FILE%" >nul 2>&1
+
 :: ---------- Итоги ----------
 echo.
 echo ========================================

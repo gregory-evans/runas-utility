@@ -16,6 +16,7 @@ type
     TApp = record
         mode: WORD;              { режим запуска }
         elevation: boolean;      { нужно повышение прав }
+        noWindow: boolean;       { не создавать консоль у цели (-w, CREATE_NO_WINDOW) }
         command: string;         { команда }
         parameters: string;      { параметры для команды }
         commandLine: string;     { итоговая командная строка (команда в кавычках + параметры) }
@@ -26,7 +27,7 @@ type
     end;
 
 var
-    app: TApp = (mode: SW_NORMAL; elevation: False; command: ''; parameters: '';
+    app: TApp = (mode: SW_NORMAL; elevation: False; noWindow: False; command: ''; parameters: '';
                  commandLine: ''; mmfName: ''; mmfHandle: 0; eventName: ''; eventHandle: 0);
 
 { Уникальный суффикс для имён MMF/Event: PID перерабатывается Windows,
@@ -40,18 +41,23 @@ end; { UniqueSuffix() }
   Перед запуском проверяет существование программы (ERROR_COMMAND_NOT_FOUND),
   при неудаче запуска завершится с ERROR_CREATE_PROCESS }
 procedure RunTarget();
+var flags: DWORD;
 begin
     if not ProgramExists(app.commandLine) then begin
         WriteLn(TXT_COMMAND_NOT_FOUND);
         Error(ERROR_COMMAND_NOT_FOUND);
     end;
-    if not RunCommand(app.mode, app.commandLine) then Halt(ERROR_CREATE_PROCESS);
+    { По умолчанию цель получает новую консоль; при -w — консоли не будет вовсе */}
+    flags := CREATE_NEW_CONSOLE;
+    if app.noWindow then flags := CREATE_NO_WINDOW;
+    if not RunCommand(flags, app.mode, app.commandLine) then Halt(ERROR_CREATE_PROCESS);
 end; { RunTarget() }
 
 { Запуск себя с повышенными правами }
 procedure StartElevationProcess();
 var
     suffix: string;
+    wFlag: string;
 begin
     { Проверим, нет ли у нас уже админских прав? }
     if IsRunningAsAdmin() then begin
@@ -72,8 +78,10 @@ begin
             app.eventHandle := CreateEvent(nil, False, False, pchar(app.eventName));
             if app.eventHandle = 0 then Error(ERROR_CREATE_EVENT);
             try
-                { Запустим процесс. Себя через ShellExecuteEx. С необходимыми параметрами. }
-                if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + app.mmfName + ' ' + app.eventName + ' ' + StringMode(app.mode)) then begin
+                { Запустим процесс. Себя через ShellExecuteEx. С необходимыми параметрами.
+                  5-й аргумент — флаг -w (1/0), дочерняя копия прочитает его в ElevatedStart */}
+                if app.noWindow then wFlag := '1' else wFlag := '0';
+                if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + app.mmfName + ' ' + app.eventName + ' ' + StringMode(app.mode) + ' ' + wFlag, app.noWindow) then begin
                     { Отказ в UAC или сбой запуска — ждать событие бессмысленно, выходим сразу }
                     WriteLn(TXT_UAC_DENIED);
                     Error(ERROR_UAC_DENIED);
@@ -110,6 +118,7 @@ begin
                 'M': app.mode := SW_MAXIMIZE;
                 'm': app.mode := SW_MINIMIZE;
                 'h': app.mode := SW_HIDE;
+                'w': app.noWindow := true;
                 'n': app.mode := SW_NORMAL;
                 'a': app.elevation := true;
                 '?', 'H': PrintHelpAndExit(ERROR_REQUEST_HELP);
@@ -148,6 +157,8 @@ begin
         'h': app.mode := SW_HIDE;
         else app.mode := SW_NORMAL;
     end; {case}
+    { 5-й аргумент — флаг -w (отсутствует в старых запусках) */}
+    app.noWindow := (ParamCount >= 5) and (ParamStr(5) = '1');
     { Откроем и прочитаем mmf }
     app.mmfHandle := OpenFileMapping(FILE_MAP_READ, False, pchar(app.mmfName));
     if app.mmfHandle = 0 then Error(ERROR_OPEN_MMF); 
