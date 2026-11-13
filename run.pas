@@ -1,5 +1,5 @@
 { fpc -O3 -CX -XX -Xs run.pas
-  strip run.exe } 
+strip run.exe } 
 {$mode Objfpc}{$H+}
 program run;
 uses
@@ -18,6 +18,7 @@ var
     elevation: boolean = false;     { нужно повышение прав }
     command: string = '';           { команда }
     parameters: string = '';        { параметры для команды }
+    commandLine: string = '';       { итоговая командная строка (команда в кавычках + параметры) }
     { Необходимые для работы значения }
     mmfName: string;
     mmfHandle: THandle = 0;
@@ -30,27 +31,33 @@ begin
     { Проверим, нет ли у нас уже админских прав? }
     if IsRunningAsAdmin() then begin
         { Если админские права уже есть, то просто запускаем }
-        if not RunCommand(mode, command + ' ' + parameters) then Halt(ERROR_CREATE_PROCESS);
+        if not RunCommand(mode, commandLine) then Halt(ERROR_CREATE_PROCESS);
     end else begin { Админских прав нет }
         { Создадим уникальное имя для mmf }
         mmfName := MMF_PREFIX + inttostr(GetCurrentProcessId());
         { Создадим файл отображаемый в память (mmf) и поместим туда строку запуска }
         mmfHandle := CreateFileMapping(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, MMF_SIZE, pchar(mmfName));
         if mmfHandle = 0 then Error(ERROR_CREATE_MMF);
-        if not WriteMMF(mmfHandle, MMF_SIZE, command + ' ' + parameters) then Error(ERROR_CANT_WRITE_MMF);
-        { Создадим уникальное имя для события }
-        eventName := EVENT_PREFIX + inttostr(GetCurrentProcessId());
-        { Создаём событие в НЕСИГНАЛЬНОМ состоянии (AutoReset = False, Initial = False) }
-        eventHandle := CreateEvent(nil, False, False, pchar(eventName));
-        if eventHandle = 0 then Error(ERROR_CREATE_EVENT);
-        { Запустим процесс. Себя через ShellExecuteEx. С необходимыми параметрами. }
-        if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + mmfName + ' ' + eventName + ' ' + StringMode(mode)) then Error(ERROR_SHELL_EXECUTE);
-        { Ждем событие (дочерний процесс открыл mmf) }
-        if not Waiting(eventHandle, TIMEOUT) then Error(ERROR_ON_WAITING_EVENT);
-        { Освобождаем событие }
-        CloseHandle(eventHandle);
-        { Освобождаем mmf }
-        CloseHandle(mmfHandle);
+        try
+            if not WriteMMF(mmfHandle, MMF_SIZE, commandLine) then Error(ERROR_CANT_WRITE_MMF);
+            { Создадим уникальное имя для события }
+            eventName := EVENT_PREFIX + inttostr(GetCurrentProcessId());
+            { Создаём событие в НЕСИГНАЛЬНОМ состоянии (AutoReset = False, Initial = False) }
+            eventHandle := CreateEvent(nil, False, False, pchar(eventName));
+            if eventHandle = 0 then Error(ERROR_CREATE_EVENT);
+            try
+                { Запустим процесс. Себя через ShellExecuteEx. С необходимыми параметрами. }
+                if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + mmfName + ' ' + eventName + ' ' + StringMode(mode)) then Error(ERROR_SHELL_EXECUTE);
+                { Ждем событие (дочерний процесс открыл mmf) }
+                if not Waiting(eventHandle, TIMEOUT) then Error(ERROR_ON_WAITING_EVENT);
+            finally
+                { Освобождаем событие }
+                CloseHandle(eventHandle);
+            end;
+        finally
+            { Освобождаем mmf }
+            CloseHandle(mmfHandle);
+        end;
     end;
 end; { StartElevationProcess() } 
 
@@ -58,32 +65,43 @@ end; { StartElevationProcess() }
 procedure NormalStart();
 var
     i: integer;
+    arg: string;
 begin
     { Если не переданы параметры, показываем справку и выходим }
     if ( ParamCount <= 0 ) then PrintHelpAndExit(ERROR_NO_PARAMETERS);
     { Разберем параметры командной строки и заполним 
-      информацию о состоянии приложения }
+    информацию о состоянии приложения.
+    Опция — аргумент вида -X (ровно 2 символа). Другие аргументы с дефисом
+    (например --verbose или -1) считаются параметрами команды. }
     for i:=1 to ParamCount do begin
-        if (ParamStr(i)[1] = '-') then // found option
-            case ParamStr(i)[2] of
+        arg := ParamStr(i);
+        if (Length(arg) = 2) and (arg[1] = '-') then // found option
+            case arg[2] of
                 'M': mode := SW_MAXIMIZE;
                 'm': mode := SW_MINIMIZE;
                 'h': mode := SW_HIDE;
                 'n': mode := SW_NORMAL;
                 'a': elevation := true;
-                '?': PrintHelpAndExit(ERROR_REQUEST_HELP);
-                'H': PrintHelpAndExit(ERROR_REQUEST_HELP);
-                else PrintHelpAndExit(ERROR_UNDEFINED_PARAMETERS);
+                '?', 'H': PrintHelpAndExit(ERROR_REQUEST_HELP);
+            else
+                { Неизвестный флаг: до команды — ошибка, после — обычный параметр }
+                if (command = '') then PrintHelpAndExit(ERROR_UNDEFINED_PARAMETERS)
+                else parameters += Quoted(arg) + ' ';
             end {case}
         else 
-            if (command = '') then command := ParamStr(i)
-            else parameters += Quoted(ParamStr(i)) + ' ';
+            if (command = '') then command := arg
+            else parameters += Quoted(arg) + ' ';
     end; {for}
+    { Команда должна быть указана }
+    if (command = '') then Error(ERROR_NO_COMMAND);
+    { Собираем итоговую командную строку. Путь к программе экранируем,
+      чтобы CreateProcess корректно разобрал пути с пробелами }
+    commandLine := Quoted(command) + ' ' + parameters;
     { Требуется ли повышение привелегий }
     if elevation then begin
         StartElevationProcess()
     end else begin
-        if not RunCommand(mode, command + ' ' + parameters) then Halt(ERROR_CREATE_PROCESS);
+        if not RunCommand(mode, commandLine) then Halt(ERROR_CREATE_PROCESS);
     end;
 end; { normalStart() }
 

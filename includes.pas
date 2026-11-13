@@ -128,29 +128,29 @@ type
     TTokenElevation = _TOKEN_ELEVATION;
     PTokenElevation = ^TTokenElevation;
     _SHELLEXECUTEINFOW       = record
-                                   cbSize : DWORD;
-                                   fMask : ULONG;
-                                   wnd : HWND;
-                                   lpVerb : lpcwstr;
-                                   lpFile : lpcwstr;
-                                   lpParameters : lpcwstr;
-                                   lpDirectory : lpcwstr;
-                                   nShow : longint;
-                                   hInstApp : HINST;
-                                   lpIDList : LPVOID;
-                                   lpClass : LPCWSTR;
-                                   hkeyClass : HKEY;
-                                   dwHotKey : DWORD;
-                                   DUMMYUNIONNAME : record
-                                                      case longint of
-                                                       0 : ( hIcon : HANDLE );
-                                                       1 : ( hMonitor : HANDLE );
-                                                      end;
-                                   hProcess : HANDLE;
-                                  end;
-       SHELLEXECUTEINFOW        = _SHELLEXECUTEINFOW;
-       TSHELLEXECUTEINFOW       = _SHELLEXECUTEINFOW;
-       LPSHELLEXECUTEINFOW      = ^_SHELLEXECUTEINFOW;
+                                cbSize : DWORD;
+                                fMask : ULONG;
+                                wnd : HWND;
+                                lpVerb : lpcwstr;
+                                lpFile : lpcwstr;
+                                lpParameters : lpcwstr;
+                                lpDirectory : lpcwstr;
+                                nShow : longint;
+                                hInstApp : HINST;
+                                lpIDList : LPVOID;
+                                lpClass : LPCWSTR;
+                                hkeyClass : HKEY;
+                                dwHotKey : DWORD;
+                                DUMMYUNIONNAME : record
+                                                    case longint of
+                                                    0 : ( hIcon : HANDLE );
+                                                    1 : ( hMonitor : HANDLE );
+                                                    end;
+                                hProcess : HANDLE;
+                                end;
+    SHELLEXECUTEINFOW        = _SHELLEXECUTEINFOW;
+    TSHELLEXECUTEINFOW       = _SHELLEXECUTEINFOW;
+    LPSHELLEXECUTEINFOW      = ^_SHELLEXECUTEINFOW;
 
 const 
     SW_HIDE = 0;
@@ -243,6 +243,7 @@ const
     ERROR_MAP_MMF                   = 113;
     ERROR_OPEN_EVENT                = 114;
     ERROR_SET_EVENT                 = 115;
+    ERROR_NO_COMMAND                = 116;
     { OpenProcessToken  }
     TOKEN_ADJUST_DEFAULT = 128;
     TOKEN_ADJUST_GROUPS = 64;
@@ -310,6 +311,8 @@ const
     SEMAPHORE_MODIFY_STATE = 2;
     EVENT_ALL_ACCESS = $1f0003;
     EVENT_MODIFY_STATE = 2;
+    { MultiByteToWideChar }
+    CP_ACP = 0;   { системная ANSI-кодовая страница (на русском Windows — 1251) }
     KEY_ALL_ACCESS = $f003f;
     KEY_CREATE_LINK = 32;
     KEY_CREATE_SUB_KEY = 4;
@@ -365,24 +368,28 @@ const
                 '    -?  Print help.';
 
 
-function CreateProcess(lpApplicationName: PChar; lpCommandLine: PChar; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: PChar; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation ): BOOL; external 'kernel32' name 'CreateProcessA';
-function ShellExecuteExW(lpExecInfo: LPSHELLEXECUTEINFOW):Bool;external 'shell32.dll' name 'ShellExecuteExW';
-function OpenProcessToken( ProcessHandle: THandle; DesiredAccess: DWORD; var TokenHandle: THandle): BOOL; external 'advapi32' name 'OpenProcessToken';
-function GetCurrentProcess:HANDLE; external 'kernel32' name 'GetCurrentProcess';
-function GetCurrentProcessId:DWORD; external 'kernel32' name 'GetCurrentProcessId';
-function GetTokenInformation(TokenHandle: THandle; TokenInformationClass: TTokenInformationClass; TokenInformation: Pointer; TokenInformationLength: DWORD; var ReturnLength: DWORD): BOOL; external 'advapi32' name 'GetTokenInformation';
+function CreateProcess(lpApplicationName: PChar; lpCommandLine: PChar; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: PChar; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation ): BOOL; stdcall; external 'kernel32' name 'CreateProcessA';
+function ShellExecuteExW(lpExecInfo: LPSHELLEXECUTEINFOW):Bool;stdcall;external 'shell32.dll' name 'ShellExecuteExW';
+function OpenProcessToken( ProcessHandle: THandle; DesiredAccess: DWORD; var TokenHandle: THandle): BOOL; stdcall; external 'advapi32' name 'OpenProcessToken';
+function GetCurrentProcess:HANDLE; stdcall; external 'kernel32' name 'GetCurrentProcess';
+function GetCurrentProcessId:DWORD; stdcall; external 'kernel32' name 'GetCurrentProcessId';
+function GetTokenInformation(TokenHandle: THandle; TokenInformationClass: TTokenInformationClass; TokenInformation: Pointer; TokenInformationLength: DWORD; var ReturnLength: DWORD): BOOL; stdcall; external 'advapi32' name 'GetTokenInformation';
 function PathFindFileNameA(pPath: LPCSTR): LPCSTR; stdcall; external 'shlwapi.dll' name 'PathFindFileNameA';
-function CloseHandle(hObject:HANDLE):WINBOOL; external 'kernel32' name 'CloseHandle'; 
-function WaitForSingleObject(hHandle:HANDLE; dwMilliseconds:DWORD):DWORD; external 'kernel32' name 'WaitForSingleObject';
-function GetLastError:DWORD; external 'kernel32' name 'GetLastError';
-function CreateFileMapping(hFile:HANDLE; lpFileMappingAttributes:LPSECURITY_ATTRIBUTES; flProtect:DWORD; dwMaximumSizeHigh:DWORD; dwMaximumSizeLow:DWORD; lpName:LPCSTR):HANDLE; external 'kernel32' name 'CreateFileMappingA'; 
-function OpenFileMapping(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; external 'kernel32' name 'OpenFileMappingA';
-function MapViewOfFile(hFileMappingObject:HANDLE; dwDesiredAccess:DWORD; dwFileOffsetHigh:DWORD; dwFileOffsetLow:DWORD; dwNumberOfBytesToMap:SIZE_T):LPVOID; external 'kernel32' name 'MapViewOfFile';
-function UnmapViewOfFile(lpBaseAddress:LPVOID):WINBOOL; external 'kernel32' name 'UnmapViewOfFile';
-function CreateEvent(lpEventAttributes:LPSECURITY_ATTRIBUTES; bManualReset:WINBOOL; bInitialState:WINBOOL; lpName:LPCSTR):HANDLE; external 'kernel32' name 'CreateEventA'; 
-function OpenEvent(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; external 'kernel32' name 'OpenEventA';
-function SetEvent(hEvent:HANDLE):WINBOOL; external 'kernel32' name 'SetEvent'; 
+function CloseHandle(hObject:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'CloseHandle'; 
+function WaitForSingleObject(hHandle:HANDLE; dwMilliseconds:DWORD):DWORD; stdcall; external 'kernel32' name 'WaitForSingleObject';
+function GetLastError:DWORD; stdcall; external 'kernel32' name 'GetLastError';
+function CreateFileMapping(hFile:HANDLE; lpFileMappingAttributes:LPSECURITY_ATTRIBUTES; flProtect:DWORD; dwMaximumSizeHigh:DWORD; dwMaximumSizeLow:DWORD; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'CreateFileMappingA'; 
+function OpenFileMapping(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'OpenFileMappingA';
+function MapViewOfFile(hFileMappingObject:HANDLE; dwDesiredAccess:DWORD; dwFileOffsetHigh:DWORD; dwFileOffsetLow:DWORD; dwNumberOfBytesToMap:SIZE_T):LPVOID; stdcall; external 'kernel32' name 'MapViewOfFile';
+function UnmapViewOfFile(lpBaseAddress:LPVOID):WINBOOL; stdcall; external 'kernel32' name 'UnmapViewOfFile';
+function CreateEvent(lpEventAttributes:LPSECURITY_ATTRIBUTES; bManualReset:WINBOOL; bInitialState:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'CreateEventA'; 
+function OpenEvent(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'OpenEventA';
+function SetEvent(hEvent:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'SetEvent'; 
+{ Все WinAPI-функции — stdcall. Явно указываем, чтобы 32-битная сборка
+  корректно очищала стек (в 64-битной разницы нет) }
+function MultiByteToWideChar(CodePage: UINT; dwFlags: DWORD; lpMultiByteStr: LPCSTR; cchMultiByte: Integer; lpWideCharStr: LPWSTR; cchWideChar: Integer): Integer; stdcall; external 'kernel32' name 'MultiByteToWideChar';
 procedure PrintHelpAndExit(exitCode: WORD);
+function AnsiToWide(const value: string): WideString;
 function Quoted(value: string): string;
 function RunCommand(mode: WORD; commandLine: string): boolean;
 procedure Error(exitCode: WORD);
@@ -411,6 +418,27 @@ begin
     end; {case}
 end; { StringMode() }
 
+{ Преобразует ANSI-строку (системная кодовая страница, как её отдаёт ParamStr)
+  в wide-строку. НЕ UTF8Decode: с AnsiStrings строки закодированы в CP_ACP,
+  а не UTF-8 }
+function AnsiToWide(const value: string): WideString;
+var
+    len: integer;
+begin
+    if value = '' then begin
+        result := '';
+        exit();
+    end;
+    { Запрашиваем размер буфера с учётом завершающего #0 }
+    len := MultiByteToWideChar(CP_ACP, 0, PAnsiChar(value), -1, nil, 0);
+    if len <= 1 then begin
+        result := '';
+        exit();
+    end;
+    SetLength(result, len - 1);
+    MultiByteToWideChar(CP_ACP, 0, PAnsiChar(value), -1, PWideChar(result), len);
+end; { AnsiToWide() }
+
 { Запуск процесса с повышением прав. Скрыто. ShellExecuteExW }
 function ShellExec(const command, parameters: string): boolean;
 var
@@ -423,15 +451,14 @@ begin
     sei.Wnd := 0;
     sei.fMask := SEE_MASK_FLAG_DDEWAIT or SEE_MASK_FLAG_NO_UI;
     sei.lpVerb := 'runas';
-    wPath := UTF8Decode(command);
+    wPath := AnsiToWide(command);
     sei.lpFile := PWideChar(wPath);
     if parameters <> '' then begin
-        wParams := UTF8Decode(parameters);
+        wParams := AnsiToWide(parameters);
         sei.lpParameters := PWideChar(wParams);
     end;
     sei.nShow := SW_HIDE;
-    ShellExecuteExW(@sei);
-    result := (GetLastError() = 0);
+    result := ShellExecuteExW(@sei);
 end; { ShellExec() }
 
 { Ожидание события }
@@ -512,8 +539,8 @@ begin
         Error(ERROR_CANT_OPEN_SECURITY_TOKEN);
     dwSize := SizeOf(TOKEN_ELEVATION);
     { Запрашиваем информацию об уровне повышения привилегий [citation:6][citation:7]
-      TokenElevation (значение 20) возвращает структуру TOKEN_ELEVATION,
-      где поле TokenIsElevated = True, если токен повышенный [citation:8] }
+    TokenElevation (значение 20) возвращает структуру TOKEN_ELEVATION,
+    где поле TokenIsElevated = True, если токен повышенный [citation:8] }
     if GetTokenInformation(hToken, TokenElevation, @elevation, dwSize, dwSize) then
         Result := boolean(elevation.TokenIsElevated);
     CloseHandle(hToken);
@@ -554,7 +581,7 @@ begin
     pData := MapViewOfFile(mmfHandle, FILE_MAP_READ, 0, 0, mmfSize);
     if pData = nil then Error(ERROR_MAP_MMF);
     try
-        result := StrPas(PChar(pData)); // безопасно, пока данные содержат #0 в конце
+        result := string(PAnsiChar(pData));
     finally
         UnmapViewOfFile(pData);
     end;

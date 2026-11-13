@@ -43,15 +43,25 @@ echo   Тест 2: Команда с одним параметром
 echo ----------------------------------------
 set /a total+=1
 set "TMPFILE=%TEMP%\runas_param_!random!.txt"
-"%RUN_EXE%" cmd.exe /c "echo param1 > %TMPFILE" >nul 2>&1
-if exist "%TMPFILE%" (
-    echo [PASS]
-    set /a passed+=1
-    del "%TMPFILE%" >nul 2>&1
-) else (
-    echo [FAIL] файл не создан
-    set /a failed+=1
-)
+:: Важно: %%TMPFILE%% с закрывающим процентом — иначе переменная не развернётся
+"%RUN_EXE%" cmd.exe /c "echo param1 > %TMPFILE% & exit 0" >nul 2>&1
+:: runas завершается сразу после запуска — ждём, пока дочерний процесс запишет файл
+set /a wait_tries=0
+:wait_file
+if exist "%TMPFILE%" goto file_found
+set /a wait_tries+=1
+if !wait_tries! geq 8 goto file_missing
+ping -n 2 127.0.0.1 >nul
+goto wait_file
+:file_found
+echo [PASS]
+set /a passed+=1
+del "%TMPFILE%" >nul 2>&1
+goto test_3
+:file_missing
+echo [FAIL] файл не создан
+set /a failed+=1
+:test_3
 
 :: ---------- Тест 3: Несколько параметров ----------
 echo ----------------------------------------
@@ -116,11 +126,11 @@ echo   Тест 7: Только флаги, без команды
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" -n >nul 2>&1
-if !errorlevel! equ 101 (
-    echo [PASS] (exit code 101 — нет параметров)
+if !errorlevel! equ 116 (
+    echo [PASS] exit code 116 — нет команды
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel! (ожидался 101)
+    echo [FAIL] код = !errorlevel!, ожидался 116
     set /a failed+=1
 )
 
@@ -138,7 +148,7 @@ if !errorlevel! equ 0 (
     taskkill /F /IM notepad.exe >nul 2>&1
     set /a passed+=1
 ) else (
-    echo [WARN] notepad не найден в процессах (может быть не установлен)
+    echo [WARN] notepad не найден в процессах — может быть не установлен
     set /a passed+=1
 )
 
@@ -169,6 +179,38 @@ if !errorlevel! equ 0 (
     echo [FAIL] код = !errorlevel!
     set /a failed+=1
 )
+
+:: ---------- Тест 11: Даш-аргументы после команды ----------
+echo ----------------------------------------
+echo   Тест 11: Короткие флаги цели не путаются с runas
+echo ----------------------------------------
+set /a total+=1
+"%RUN_EXE%" cmd.exe /c "exit 0" -v >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [PASS]
+    set /a passed+=1
+) else (
+    echo [FAIL] код = !errorlevel!
+    set /a failed+=1
+)
+
+:: ---------- Тест 12: Путь с пробелами ----------
+echo ----------------------------------------
+echo   Тест 12: Команда из каталога с пробелом в имени
+echo ----------------------------------------
+set /a total+=1
+set "SPACED_DIR=%TEMP%\runas spaced test"
+if not exist "%SPACED_DIR%" mkdir "%SPACED_DIR%" >nul 2>&1
+copy /y "%SystemRoot%\System32\where.exe" "%SPACED_DIR%\" >nul 2>&1
+"%RUN_EXE%" "%SPACED_DIR%\where.exe" cmd >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [PASS]
+    set /a passed+=1
+) else (
+    echo [FAIL] код = !errorlevel!
+    set /a failed+=1
+)
+rmdir /s /q "%SPACED_DIR%" >nul 2>&1
 
 :: ---------- Итоги ----------
 echo.

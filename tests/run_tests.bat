@@ -94,8 +94,8 @@ echo ----------------------------------------
 echo   Test 5: Help output contains version
 echo ----------------------------------------
 set /a total+=1
-for /f "delims=" %%L in ('"%RUN_EXE%" -? 2^>nul') do set "help_output=%%L"
-echo !help_output! | findstr /C:"RunAs Utility v1.0" >nul 2>&1
+:: Прямой пайп: for/f хранит только последнюю строку вывода
+"%RUN_EXE%" -? 2>nul | findstr /C:"RunAs Utility v1.0" >nul 2>&1
 if !errorlevel! equ 0 (
     echo [PASS] Help contains version string
     set /a passed+=1
@@ -139,7 +139,7 @@ echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" nonexistent_program_xyz.exe >nul 2>&1
 if !errorlevel! neq 0 (
-    echo [PASS] Non-existent file returned error (code !errorlevel!)
+    echo [PASS] Non-existent file returned error, code !errorlevel!
     set /a passed+=1
 ) else (
     echo [FAIL] Non-existent file should have failed
@@ -152,22 +152,32 @@ echo   Test 9: Write output to temp file
 echo ----------------------------------------
 set /a total+=1
 set "TMPFILE=%TEMP%\runas_test_!random!.txt"
-"%RUN_EXE%" cmd.exe /c "echo TEST_OUTPUT > %TMPFILE" >nul 2>&1
-if exist "%TMPFILE%" (
-    findstr /C:"TEST_OUTPUT" "%TMPFILE%" >nul 2>&1
-    if !errorlevel! equ 0 (
-        echo [PASS] Output file created with expected content
-        del "%TMPFILE%" >nul 2>&1
-        set /a passed+=1
-    ) else (
-        echo [FAIL] Output file has unexpected content
-        del "%TMPFILE%" >nul 2>&1
-        set /a failed+=1
-    )
+:: %%TMPFILE%% с закрывающим процентом — иначе переменная не развернётся
+"%RUN_EXE%" cmd.exe /c "echo TEST_OUTPUT > %TMPFILE% & exit 0" >nul 2>&1
+:: runas завершается сразу после запуска — ждём, пока дочерний процесс запишет файл
+set /a wait_tries=0
+:wait_test9
+if exist "%TMPFILE%" goto test9_check
+set /a wait_tries+=1
+if !wait_tries! geq 8 goto test9_missing
+ping -n 2 127.0.0.1 >nul
+goto wait_test9
+:test9_missing
+echo [FAIL] Output file was not created
+set /a failed+=1
+goto test9_done
+:test9_check
+findstr /C:"TEST_OUTPUT" "%TMPFILE%" >nul 2>&1
+if !errorlevel! equ 0 (
+    echo [PASS] Output file created with expected content
+    del "%TMPFILE%" >nul 2>&1
+    set /a passed+=1
 ) else (
-    echo [FAIL] Output file was not created
+    echo [FAIL] Output file has unexpected content
+    del "%TMPFILE%" >nul 2>&1
     set /a failed+=1
 )
+:test9_done
 
 echo.
 echo ----------------------------------------
@@ -241,7 +251,7 @@ echo   Результаты тестирования
 echo ========================================
 echo   Всего:   !total!
 echo   Прошло:  !passed!
-echo   Прошло:  !failed!
+echo   Падено:  !failed!
 echo   Пропущ.: !skipped!
 echo ========================================
 

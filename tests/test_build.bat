@@ -45,7 +45,7 @@ echo [3/4] Компиляция...
 cd /d "%BUILD_DIR%"
 fpc -O3 -CX -XX -Xs run.pas
 if !errorlevel! neq 0 (
-    echo [FAIL] Компиляция завершена с ошибкой (код !errorlevel!)
+    echo [FAIL] Компиляция завершена с ошибкой, код !errorlevel!
     goto :summary
 )
 echo [OK] Компиляция успешна

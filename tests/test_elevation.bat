@@ -81,7 +81,7 @@ if exist "%TMPFILE%" (
         del "%TMPFILE%" >nul 2>&1
     )
 ) else (
-    echo [FAIL] Файл не создан (возможно, UAC отклонено)
+    echo [FAIL] Файл не создан — возможно, UAC отклонено
 )
 
 :test4

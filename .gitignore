@@ -2,10 +2,19 @@
 *.exe
 *.o
 *.ppu
+*.a
 
 # Временные файлы
 *.tmp
 *.bak
+
+# Артефакты ctags
+GPATH
+GTAGS
+GRTAGS
+
+# IDE
+.vscode/
 
 # Windows
 Thumbs.db
