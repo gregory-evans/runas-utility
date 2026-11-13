@@ -91,13 +91,14 @@ Tests are batch scripts that call `run.exe` directly and check exit codes / outp
 - Existence check before launch: `ProgramExists()` + code 118; the kernel32 `FileExistsA` export is resolved lazily via `GetProcAddress` because it is absent on this legacy system (a static import would kill the process at load time)
 - Application state is kept in a single record `TApp` (`app` is the only global variable); all handles are initialised to zero
 
-## Known Limitations (documented in README.md)
+## Known Limitations
 
-1. ~~UAC denial (`ShellExecuteEx` failure) is not reliably detected~~ — fixed: `SEE_MASK_NOCLOSEPROCESS` + `hProcess` check; a denied prompt or failed launch exits immediately with code 117 (message in `TXT_UAC_DENIED`)
-2. ~~MMF name based on PID is predictable; no random suffix for collision protection~~ — fixed: names include a random `UniqueSuffix()` component (PID + 8 hex digits)
-3. ~~Intermediate handle leaks possible if elevation fails mid-flow~~ — fixed with nested `try..finally` in `StartElevationProcess`
-4. ~~ANSI WinAPI variants limit non-ASCII path support during elevation~~ — fixed: `ShellExec` converts CP_ACP strings via `AnsiToWide()`; remaining `*A` calls (CreateProcess, MMF/Event names) still rely on the system code page
+None at present. Previously documented issues are all resolved (details in `history.md`):
+- UAC denial is detected (`SEE_MASK_NOCLOSEPROCESS` + `hProcess` check, code 117)
+- MMF/Event names carry a random suffix, not just PID
+- Handles are released via nested `try..finally` on every failure path
+- Elevation uses wide-character APIs fed by explicit CP_ACP conversion (`AnsiToWide()`); remaining `*A` calls (CreateProcess, MMF/Event names) still rely on the system code page — see README recommendation 4
 
 ## .gitignore
 
-Excludes `*.exe`, `*.o`, `*.ppu`, `*.tmp`, `*.bak`, `Thumbs.db`, `*.log`.
+Excludes build artifacts (`*.exe`, `*.o`, `*.ppu`, `*.a`), temp files (`*.tmp`, `*.bak`), ctags artifacts (GPATH/GTAGS/GRTAGS), `.vscode/`, `Thumbs.db`, `*.log`.
