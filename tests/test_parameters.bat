@@ -230,6 +230,42 @@ if exist "%NOWIN_FILE%" (
 )
 del "%NOWIN_FILE%" >nul 2>&1
 
+:: ---------- Тест 14: Подробный режим (-v) ----------
+echo ----------------------------------------
+echo   Test 14: Verbose output to stderr (-v)
+echo ----------------------------------------
+set /a total+=1
+set "VFILE=%TEMP%\runas_verbose.txt"
+del "%VFILE%" >nul 2>nul
+"%RUN_EXE%" -v cmd.exe /c "exit 0" >nul 2>"%VFILE%"
+findstr /i /c:"[run]" "%VFILE%" >nul
+if !errorlevel! equ 0 (
+    echo [PASS]
+    set /a passed+=1
+) else (
+    echo [FAIL] no verbose lines in stderr
+    set /a failed+=1
+)
+del "%VFILE%" >nul 2>nul
+
+:: ---------- Тест 15: Длинные алиасы до команды ----------
+echo ----------------------------------------
+echo   Test 15: Long alias --hide consumed as option
+echo ----------------------------------------
+set /a total+=1
+set "ALIAS_FILE=%TEMP%\runas_alias.txt"
+del "%ALIAS_FILE%" >nul 2>nul
+"%RUN_EXE%" --hide cmd.exe /c "echo ALIAS-OK > %ALIAS_FILE% 2>&1" >nul 2>&1
+ping -n 3 127.0.0.1 >nul
+if exist "%ALIAS_FILE%" (
+    echo [PASS]
+    set /a passed+=1
+) else (
+    echo [FAIL] target did not run with alias option
+    set /a failed+=1
+)
+del "%ALIAS_FILE%" >nul 2>nul
+
 :: ---------- Итоги ----------
 echo.
 echo ========================================

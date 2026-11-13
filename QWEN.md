@@ -59,10 +59,13 @@ run.exe [-h | -m | -M | -n] [-w] [-a] COMMAND [PARAM1 "PARAM 2" ...]
 | `-M` | `SW_MAXIMIZE` | Full-screen |
 | `-h` | `SW_HIDE` | Hidden launch |
 | `-w` | — | No console window at all (`CREATE_NO_WINDOW`; with `-a` also `SEE_MASK_NO_CONSOLE` for the elevated copy) |
+| `-v` | — | Verbose: intermediate steps of the flow are written to stderr with a `[run]` prefix |
 | `-a` | — | Elevate to Administrator via UAC |
 | `-?` / `-H` | — | Print help and exit (code 102) |
 
-Wrapper options are recognized only when an argument is exactly two characters long and starts with `-`; longer dashes (`--verbose`, `-1`) belong to the target program. The first non-option argument is the command, everything after it becomes parameters (each auto-quoted at launch/MMF write time). Flags without a command → exit code `116`.
+Short options (`-X`, exactly two characters) are recognized anywhere; long aliases (`--normal`, `--minimize`, `--maximize`, `--hide`, `--nowindow`, `--verbose`, `--admin`, `--help`) are recognized **only before the command** — after it, any dash argument belongs to the target program. The first non-option argument is the command, everything after it becomes parameters (each auto-quoted at launch/MMF write time). Flags without a command → exit code `116`.
+
+`IsRunningAsAdmin()` caches its result: the process token cannot change during one run, so repeated calls do not re-open the token.
 
 ### Exit Codes
 

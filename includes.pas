@@ -367,8 +367,12 @@ const
                 '    -M  Run maximized.'+#10#13+
                 '    -n  Run normal. Default option.'+#10#13+
                 '    -w  Run without console window (CREATE_NO_WINDOW).'+#10#13+
+                '    -v  Verbose output to stderr.'+#10#13+
                 '    -a  Run as Administrator.'+#10#13+
-                '    -?  Print help.';
+                '    -?  Print help.'+#10#13+
+                #10#13+
+                'Long aliases (before the command only): --normal, --minimize, --maximize,'+#10#13+
+                '--hide, --nowindow, --verbose, --admin, --help';
     TXT_UAC_DENIED = 'Elevation failed: user rejected the UAC prompt or the elevated launch did not start.';
     TXT_COMMAND_NOT_FOUND = 'Command not found: executable does not exist at the specified path.';
 
@@ -429,6 +433,9 @@ var
     fileExPtr: TFileExFunc;
     { Зерно генератора случайных чисел }
     RandSeed: Cardinal;
+    { Кэш результата IsRunningAsAdmin(): токен процесса не меняется за время работы */}
+    adminQueried: boolean;
+    adminIsAdmin: boolean;
 
 implementation
 
@@ -715,6 +722,12 @@ var
     elevation: TOKEN_ELEVATION;
     dwSize: DWORD;
 begin
+    { Результат кэшируется: повторные вызовы не открывают токен заново */}
+    if adminQueried then begin
+        Result := adminIsAdmin;
+        exit();
+    end;
+    adminQueried := True;
     Result := False;
     { Открываем токен текущего процесса с правом на запрос информации */}
     if not OpenProcessToken(GetCurrentProcess, TOKEN_QUERY, hToken) then
@@ -726,6 +739,7 @@ begin
     if GetTokenInformation(hToken, TokenElevation, @elevation, dwSize, dwSize) then
         Result := boolean(elevation.TokenIsElevated);
     CloseHandle(hToken);
+    adminIsAdmin := Result;
 end; { IsRunningAsAdmin() }
 
 { Запись в файл в памяти }

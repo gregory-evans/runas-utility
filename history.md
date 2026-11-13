@@ -86,6 +86,11 @@
 **15. CI: GitHub Actions workflow (`.github/workflows/build.yml`)**
 - Сборка на `windows-latest` при каждом push/PR: FPC ставится через Chocolatey (последняя стабильная версия — заодно страхует от регрессий на новых FPC, как с `FPC_HAS_FEATURE_RANDOM`), запускается `build.bat`, `run.exe` загружается артефактом.
 
+**16. Кэш токена, длинные алиасы флагов, verbose-режим (`includes.pas`, `run.pas`, tests)**
+- Кэш: результат `IsRunningAsAdmin()` хранится в unit-level переменных (аналогично `fileExPtr`); повторные вызовы не открывают токен заново.
+- Длинные алиасы всех опций (`--normal`, `--minimize`, `--maximize`, `--hide`, `--nowindow`, `--verbose`, `--admin`, `--help`) распознаются только до команды; после команды аргументы с дефисом остаются параметрами цели (граница зафиксирована в README и покрыта Тестами 11/15).
+- Verbose: флаг `-v` (`TApp.verbose`) + процедура `VLog()` выводит промежуточные шаги потока в stderr с префиксом `[run]`; справка обновлена. Новые Тесты 14–15.
+
 ### Файлы
 
 | Файл | Изменение |
@@ -93,7 +98,7 @@
 | `includes.pas` | `AnsiToWide()`, коды 116/117/118, `stdcall` для всех WinAPI, `ShellExec`: `SEE_MASK_NOCLOSEPROCESS` + проверка `hProcess` (+ `SEE_MASK_NO_CONSOLE` при `-w`); перегрузка `IntToStr(Value: DWORD)`; `GetProgramPart()`/`ProgramExists()` с ленивым разрешением `FileExistsA`; встроенный генератор случайных чисел (Mersenne Twister) и `IntToStr`/`IntToHex` вместо unit sysutils; `RunCommand(creationFlags, ...)` |
 | `run.pas` | глобальная `commandLine`, новый парсинг флагов в `NormalStart`, код 116; при неудаче элевации — сообщение + код 117; `Randomize` при старте, `UniqueSuffix()` в именах MMF/Event; общая процедура `RunTarget()`; состояние собрано в структуру `TApp` (`app`); флаг `-w` (поле `noWindow`, передача 5-м аргументом элевированному процессу) |
 | `tests/run_tests.bat` | фикс `%TMPFILE%`, цикл ожидания Test 9, пайп для проверки help, опечатка в отчёте |
-| `tests/test_parameters.bat` | фикс `%TMPFILE%`, ожидание файла Test 2, код 116 (Test 7), новые Test 11–12; Тест 13 (запуск `-w`) |
+| `tests/test_parameters.bat` | фикс `%TMPFILE%`, ожидание файла Test 2, код 116 (Test 7), новые Test 11–12; Тест 13 (запуск `-w`); Тесты 14–15 (`-v`, длинные алиасы) |
 | `.github/workflows/build.yml` | CI: сборка на windows-latest при push/PR, FPC из Chocolatey, артефакт run.exe |
 | `tests/test_build.bat`, `tests/test_elevation.bat` | скобки в `echo` внутри if-блоков |
 | `README.md` | коды 116/117, правило распознавания флагов, статусы пунктов 1–5 и 11 рекомендаций, пометка о битности сборки |
@@ -119,3 +124,4 @@
 - Проверка существования: unit-тест `ProgramExists()` через подстановочную функцию — несуществующий путь → False (путь к коду 118), существующий → True, голое имя → True (пропуск). На этой машине экспорт `FileExistsA` отсутствует, поэтому проверка корректно пропускается (несуществующий путь даёт прежний код 104).
 - Удаление sysutils: сборка без предупреждений (940 строк), все сьюиты зелёные (12/12, 13/13+SKIP); два элевированных запуска дали разные имена MMF (`Local\mmf_4536_57853260`, `Local\mmf_17940_22F1A842`), оба дочерних процесса отработали; размер бинарника 97280 → 47104 байта.
 - Флаг `-w`: цель с `-w` и элевированная цель с `-w -a` выполнили команду и записали файл (проверено end-to-end); test_parameters теперь 13/13, run_tests 13/13+SKIP.
+- Кэш/алиасы/verbose: `run.exe -v --admin cmd ...` вывела в stderr полный поток (`[run] parsed → creating mmf/event → launching elevated copy → waiting for event → event signaled`), элевированный дочерний отработал; алиас после команды остался параметром цели (проверено); test_parameters теперь 15/15, run_tests 13/13+SKIP.
