@@ -62,4 +62,5 @@
   `mode`, `elevation`, `command`, `parameters`, `mmfName`, `mmfHandle`, `eventName`, `eventHandle` — всё в global scope.  
   ✅ Исправлено: все поля собраны в структуру `TApp` (единственная глобальная переменная — `app`). Все хендлы инициализируются нулём.
 
-- [ ] **Добавить `FileExists(command)` перед запуском** (`includes.pas`, `RunCommand`)  
+- [x] **Добавить `FileExists(command)` перед запуском** (`includes.pas`, `RunCommand`)  
+  ✅ Исправлено: `ProgramExists()` проверяет существование программы (часть командной строки до пробела/кавычки) в `RunTarget()`; голое имя без разделителей не проверяется — его разрешит через PATH сам CreateProcess. Новый код `ERROR_COMMAND_NOT_FOUND = 118` + сообщение `TXT_COMMAND_NOT_FOUND`. Важно: экспорт `FileExistsA` отсутствует в kernel32 этой старой системы (статический импорт роняет процесс до main), поэтому функция разрешается лениво через `GetProcAddress`; если API недоступно — проверка пропускается.

@@ -36,10 +36,15 @@ begin
     result := IntToHex(Random(MaxInt), 8);
 end; { UniqueSuffix() }
 
-{ Запустит целевую команду (поле commandLine структуры app);
-  при неудаче завершится с ERROR_CREATE_PROCESS }
+{ Запустит целевую команду (поле commandLine структуры app).
+  Перед запуском проверяет существование программы (ERROR_COMMAND_NOT_FOUND),
+  при неудаче запуска завершится с ERROR_CREATE_PROCESS }
 procedure RunTarget();
 begin
+    if not ProgramExists(app.commandLine) then begin
+        WriteLn(TXT_COMMAND_NOT_FOUND);
+        Error(ERROR_COMMAND_NOT_FOUND);
+    end;
     if not RunCommand(app.mode, app.commandLine) then Halt(ERROR_CREATE_PROCESS);
 end; { RunTarget() }
 

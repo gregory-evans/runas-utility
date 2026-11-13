@@ -245,6 +245,7 @@ const
     ERROR_SET_EVENT                 = 115;
     ERROR_NO_COMMAND                = 116;
     ERROR_UAC_DENIED                = 117;
+    ERROR_COMMAND_NOT_FOUND         = 118;
     { OpenProcessToken  }
     TOKEN_ADJUST_DEFAULT = 128;
     TOKEN_ADJUST_GROUPS = 64;
@@ -368,6 +369,7 @@ const
                 '    -a  Run as Administrator.'+#10#13+
                 '    -?  Print help.';
     TXT_UAC_DENIED = 'Elevation failed: user rejected the UAC prompt or the elevated launch did not start.';
+    TXT_COMMAND_NOT_FOUND = 'Command not found: executable does not exist at the specified path.';
 
 
 function CreateProcess(lpApplicationName: PChar; lpCommandLine: PChar; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: PChar; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation ): BOOL; stdcall; external 'kernel32' name 'CreateProcessA';
@@ -387,6 +389,8 @@ function UnmapViewOfFile(lpBaseAddress:LPVOID):WINBOOL; stdcall; external 'kerne
 function CreateEvent(lpEventAttributes:LPSECURITY_ATTRIBUTES; bManualReset:WINBOOL; bInitialState:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'CreateEventA'; 
 function OpenEvent(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'OpenEventA';
 function SetEvent(hEvent:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'SetEvent'; 
+function GetModuleHandleA(lpModuleName: PChar): THandle; stdcall; external 'kernel32' name 'GetModuleHandleA';
+function GetProcAddress(hModule: THandle; lpProcName: PChar): Pointer; stdcall; external 'kernel32' name 'GetProcAddress';
 { Все WinAPI-функции — stdcall. Явно указываем, чтобы 32-битная сборка
   корректно очищала стек (в 64-битной разницы нет) }
 function MultiByteToWideChar(CodePage: UINT; dwFlags: DWORD; lpMultiByteStr: LPCSTR; cchMultiByte: Integer; lpWideCharStr: LPWSTR; cchWideChar: Integer): Integer; stdcall; external 'kernel32' name 'MultiByteToWideChar';
@@ -406,6 +410,16 @@ function IntToStr(Value: Int64): string;
 function IntToStr(Value: QWord): string;
 function IntToStr(Value: DWORD): string;
 function GetFileName(fullPath: string): string;
+function GetProgramPart(commandLine: string): string;
+function ProgramExists(commandLine: string): boolean;
+type
+    { Функция kernel32 FileExistsA }
+    TFileExFunc = function(FileName: PChar): WINBOOL; stdcall;
+var
+    { Указатель на FileExistsA. Разрешается лениво через GetProcAddress:
+      в kernel32 старых систем этого экспорта может не быть, и статический
+      импорт тогда роняет процесс ещё до main (проверено на этой машине) }
+    fileExPtr: TFileExFunc;
 
 implementation
 
@@ -533,6 +547,39 @@ begin
     WriteLn('Error: ', exitCode);
     Halt(exitCode);
 end; { Error() }
+
+{ Выделяет часть командной строки с программой, учитывая кавычки }
+function GetProgramPart(commandLine: string): string;
+var i: Integer;
+begin
+    if (Length(commandLine) > 0) and (commandLine[1] = '"') then begin
+        { Программа в кавычках — ищем закрывающую кавычку }
+        i := Pos('"', Copy(commandLine, 2, MaxInt));
+        if (i = 0) then result := commandLine
+            else result := Copy(commandLine, 2, i - 1);
+    end else begin
+        { Без кавычек — до первого пробела }
+        i := Pos(' ', commandLine);
+        if (i = 0) then result := commandLine
+            else result := Copy(commandLine, 1, i - 1);
+    end;
+end; { GetProgramPart() }
+
+{ Проверяет существование программы.
+  Голое имя без разделителей не проверяем — его разрешит через PATH сам CreateProcess }
+function ProgramExists(commandLine: string): boolean;
+var part: string;
+begin
+    part := GetProgramPart(commandLine);
+    if (Pos('\', part) = 0) and (Pos('/', part) = 0) then begin
+        { Голое имя — разрешит через PATH сам CreateProcess }
+        result := True;
+    end else begin
+        if (fileExPtr = nil) then fileExPtr := TFileExFunc(GetProcAddress(GetModuleHandleA(pchar('kernel32')), 'FileExistsA'));
+        if (fileExPtr = nil) then result := True { API недоступен — пусть решает CreateProcess }
+            else result := fileExPtr(pchar(part));
+    end;
+end; { ProgramExists() }
 
 { Установить кавычки, если строка содержит пробелы }
 function Quoted(value: string): string;

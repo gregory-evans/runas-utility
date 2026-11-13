@@ -67,7 +67,7 @@ Wrapper options are recognized only when an argument is exactly two characters l
 
 ### Exit Codes
 
-Range **101–117**. Key codes: `101` = no parameters, `103` = unknown flag, `104` = process creation failed, `110` = ShellExecute failed, `116` = flags given but no command, `117` = UAC denial / elevated launch failure. See `README.md` for the full table.
+Range **101–118**. Key codes: `101` = no parameters, `103` = unknown flag, `104` = process creation failed, `110` = ShellExecute failed, `116` = flags given but no command, `117` = UAC denial / elevated launch failure, `118` = command not found. See `README.md` for the full table.
 
 ## Testing
 
@@ -86,8 +86,9 @@ Tests are batch scripts that call `run.exe` directly and check exit codes / outp
 - Custom Windows API declarations in `includes.pas` rather than using standard RTL units — keeps the binary self-contained and minimal
 - All external WinAPI declarations carry an explicit `stdcall` calling convention (required for correct i386-Win32 builds; without it `CreateProcessA` crashes with Runtime error 216)
 - ANSI (`*A`) versions of WinAPI are used for MMF/Event naming and process creation; WideChar (`*W`) for `ShellExecuteExW`, fed by the explicit `AnsiToWide()` conversion (`MultiByteToWideChar(CP_ACP, ...)`)
-- Error handling via `Halt(errorCode)` with custom codes 101–117 defined in `includes.pas`
+- Error handling via `Halt(errorCode)` with custom codes 101–118 defined in `includes.pas`
 - No external libraries or RTL dependencies beyond `System`
+- Existence check before launch: `ProgramExists()` + code 118; the kernel32 `FileExistsA` export is resolved lazily via `GetProcAddress` because it is absent on this legacy system (a static import would kill the process at load time)
 - Application state is kept in a single record `TApp` (`app` is the only global variable); all handles are initialised to zero
 
 ## Known Limitations (documented in README.md)
