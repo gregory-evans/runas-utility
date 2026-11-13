@@ -12,12 +12,12 @@ A **Free Pascal** command-line utility that launches programs with optional **ad
 
 ### Source Files
 
-| File | Purpose |
+| `run.pas` | Main program entry point; argument parsing, flow dispatch (`NormalStart`, `ElevatedStart`, `StartElevationProcess`, `RunTarget`) |
 |---|---|
 | `run.pas` | Main program entry point; argument parsing, flow dispatch (`NormalStart`, `ElevatedStart`, `StartElevationProcess`) |
 | `includes.pas` | Unit with all Windows API declarations, type definitions, constants, and helper functions (MMF I/O, process creation, token queries) |
 
-### How Elevation Works
+1. Parent parses flags → if `-a` is set and current token is not elevated, creates a named **Memory-Mapped File** (`Local\mmf_<pid>_<suffix>`) and a named **Event** (`Global\event_<pid>_<suffix>`, suffix = `UniqueSuffix()`)
 
 1. Parent parses flags → if `-a` is set and current token is not elevated, creates a named **Memory-Mapped File** (`Local\mmf_<pid>`) and a named **Event** (`Global\event_<pid>`)
 2. Command line string is written into the MMF

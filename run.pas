@@ -32,6 +32,13 @@ begin
     result := IntToHex(Random(MaxInt), 8);
 end; { UniqueSuffix() }
 
+{ Запустит целевую команду (глобальная commandLine);
+  при неудаче завершится с ERROR_CREATE_PROCESS }
+procedure RunTarget();
+begin
+    if not RunCommand(mode, commandLine) then Halt(ERROR_CREATE_PROCESS);
+end; { RunTarget() }
+
 { Запуск себя с повышенными правами }
 procedure StartElevationProcess();
 var
@@ -40,7 +47,7 @@ begin
     { Проверим, нет ли у нас уже админских прав? }
     if IsRunningAsAdmin() then begin
         { Если админские права уже есть, то просто запускаем }
-        if not RunCommand(mode, commandLine) then Halt(ERROR_CREATE_PROCESS);
+        RunTarget();
     end else begin { Админских прав нет }
         { Создадим уникальное имя для mmf }
         suffix := UniqueSuffix();
@@ -115,7 +122,7 @@ begin
     if elevation then begin
         StartElevationProcess()
     end else begin
-        if not RunCommand(mode, commandLine) then Halt(ERROR_CREATE_PROCESS);
+        RunTarget();
     end;
 end; { normalStart() }
 
@@ -135,8 +142,8 @@ begin
     { Откроем и прочитаем mmf }
     mmfHandle := OpenFileMapping(FILE_MAP_READ, False, pchar(mmfName));
     if mmfHandle = 0 then Error(ERROR_OPEN_MMF); 
-    command := ReadMMF(mmfHandle, MMF_SIZE);
-    if (command = '') then Error(ERROR_READ_MMF);
+    commandLine := ReadMMF(mmfHandle, MMF_SIZE);
+    if (commandLine = '') then Error(ERROR_READ_MMF);
     { Освободим mmf }
     CloseHandle(mmfHandle);
     { Установим Event }
@@ -147,7 +154,7 @@ begin
     { Освободим event }
     CloseHandle(eventHandle);
     { Выполним команду }
-    if not RunCommand(mode, command) then Halt(ERROR_CREATE_PROCESS);
+    RunTarget();
 end; { elevatedStart() }
 
 begin
