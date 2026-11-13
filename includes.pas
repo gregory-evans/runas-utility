@@ -404,6 +404,7 @@ function StringMode(mode: WORD): string;
 function IntToStr(Value: Longint): string;
 function IntToStr(Value: Int64): string;
 function IntToStr(Value: QWord): string;
+function IntToStr(Value: DWORD): string;
 function GetFileName(fullPath: string): string;
 
 implementation
@@ -493,6 +494,11 @@ function IntToStr(Value: QWord): string;
 begin
     System.Str(Value, Result);
 end; { IntToStr(Value: QWord) }
+{ Точное совпадение для DWORD (GetCurrentProcessId и пр.): без неявного приведения к Longint }
+function IntToStr(Value: DWORD): string;
+begin
+    result := IntToStr(QWord(Value));
+end; { IntToStr(Value: DWORD) }
 
 { Запустить команду }
 function RunCommand(mode: WORD; commandLine: string): boolean;

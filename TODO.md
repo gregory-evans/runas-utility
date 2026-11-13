@@ -54,8 +54,9 @@
 
 ## 🟢 Улучшения
 
-- [ ] **Добавить `IntToStr(Value: DWORD)`** (`includes.pas`)  
-  `GetCurrentProcessId` возвращает `DWORD`; текущих перегрузок (`Longint`, `Int64`, `QWord`) нет точного совпадения.
+- [x] **Добавить `IntToStr(Value: DWORD)`** (`includes.pas`)  
+  `GetCurrentProcessId` возвращает `DWORD`; текущих перегрузок (`Longint`, `Int64`, `QWord`) нет точного совпадения.  
+  ✅ Исправлено: добавлена перегрузка `IntToStr(Value: DWORD)`, реализованная через `QWord` (беззнаковая семантика, значения > $7FFFFFFF не превращаются в отрицательные).
 
 - [ ] **Заменить глобальные переменные на record/структуру** (`run.pas`)  
   `mode`, `elevation`, `command`, `parameters`, `mmfName`, `mmfHandle`, `eventName`, `eventHandle` — всё в global scope.
