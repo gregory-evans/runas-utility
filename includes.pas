@@ -244,6 +244,7 @@ const
     ERROR_OPEN_EVENT                = 114;
     ERROR_SET_EVENT                 = 115;
     ERROR_NO_COMMAND                = 116;
+    ERROR_UAC_DENIED                = 117;
     { OpenProcessToken  }
     TOKEN_ADJUST_DEFAULT = 128;
     TOKEN_ADJUST_GROUPS = 64;
@@ -366,6 +367,7 @@ const
                 '    -n  Run normal. Default option.'+#10#13+
                 '    -a  Run as Administrator.'+#10#13+
                 '    -?  Print help.';
+    TXT_UAC_DENIED = 'Elevation failed: user rejected the UAC prompt or the elevated launch did not start.';
 
 
 function CreateProcess(lpApplicationName: PChar; lpCommandLine: PChar; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: PChar; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation ): BOOL; stdcall; external 'kernel32' name 'CreateProcessA';
@@ -449,7 +451,9 @@ begin
     FillChar(sei, SizeOf(sei), 0);
     sei.cbSize := SizeOf(sei);
     sei.Wnd := 0;
-    sei.fMask := SEE_MASK_FLAG_DDEWAIT or SEE_MASK_FLAG_NO_UI;
+    { NOCLOSEPROCESS — чтобы проверить hProcess и отличить успешный запуск
+      от отказа пользователя в диалоге UAC }
+    sei.fMask := SEE_MASK_FLAG_DDEWAIT or SEE_MASK_FLAG_NO_UI or SEE_MASK_NOCLOSEPROCESS;
     sei.lpVerb := 'runas';
     wPath := AnsiToWide(command);
     sei.lpFile := PWideChar(wPath);
@@ -459,6 +463,13 @@ begin
     end;
     sei.nShow := SW_HIDE;
     result := ShellExecuteExW(@sei);
+    { Если процесс не запущен (отказ в UAC, файл не найден), hProcess = 0 — считаем неудачей }
+    if (not result) or (sei.hProcess = 0) then begin
+        result := false;
+    end else begin
+        { Дочерний процесс работает независимо — не держим ссылку на него }
+        CloseHandle(sei.hProcess);
+    end;
 end; { ShellExec() }
 
 { Ожидание события }

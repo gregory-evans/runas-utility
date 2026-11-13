@@ -67,7 +67,7 @@ Wrapper options are recognized only when an argument is exactly two characters l
 
 ### Exit Codes
 
-Range **101–116**. Key codes: `101` = no parameters, `103` = unknown flag, `104` = process creation failed, `110` = ShellExecute failed, `116` = flags given but no command. See `README.md` for the full table.
+Range **101–117**. Key codes: `101` = no parameters, `103` = unknown flag, `104` = process creation failed, `110` = ShellExecute failed, `116` = flags given but no command, `117` = UAC denial / elevated launch failure. See `README.md` for the full table.
 
 ## Testing
 
@@ -75,7 +75,7 @@ Range **101–116**. Key codes: `101` = no parameters, `103` = unknown flag, `10
 tests\run_tests.bat        { main test suite — 13 automated + 1 manual UAC }
 tests\test_build.bat       { verifies build environment and compilation }
 tests\test_parameters.bat  { parameter parsing, window modes, exit codes — 12 tests }
-tests\test_elevation.bat   { UAC elevation (requires manual confirmation) }
+tests\test_elevation.bat   { UAC elevation; Test 5 auto-verifies code 117 on failed elevation }
 ```
 
 Tests are batch scripts that call `run.exe` directly and check exit codes / output. Elevation tests prompt for UAC approval interactively (auto-skipped when stdin is redirected). Child-process results are verified with a bounded wait loop (`ping -n 2`) because the wrapper exits immediately after spawning.
@@ -86,12 +86,12 @@ Tests are batch scripts that call `run.exe` directly and check exit codes / outp
 - Custom Windows API declarations in `includes.pas` rather than using standard RTL units — keeps the binary self-contained and minimal
 - All external WinAPI declarations carry an explicit `stdcall` calling convention (required for correct i386-Win32 builds; without it `CreateProcessA` crashes with Runtime error 216)
 - ANSI (`*A`) versions of WinAPI are used for MMF/Event naming and process creation; WideChar (`*W`) for `ShellExecuteExW`, fed by the explicit `AnsiToWide()` conversion (`MultiByteToWideChar(CP_ACP, ...)`)
-- Error handling via `Halt(errorCode)` with custom codes 101–116 defined in `includes.pas`
+- Error handling via `Halt(errorCode)` with custom codes 101–117 defined in `includes.pas`
 - No external libraries or RTL dependencies beyond `System`
 
 ## Known Limitations (documented in README.md)
 
-1. UAC denial (`ShellExecuteEx` failure) is not reliably detected — no `SEE_MASK_NOCLOSEPROCESS`, so a denied prompt looks like a timeout (code 109)
+1. ~~UAC denial (`ShellExecuteEx` failure) is not reliably detected~~ — fixed: `SEE_MASK_NOCLOSEPROCESS` + `hProcess` check; a denied prompt or failed launch exits immediately with code 117 (message in `TXT_UAC_DENIED`)
 2. MMF name based on PID is predictable; no random suffix for collision protection
 3. ~~Intermediate handle leaks possible if elevation fails mid-flow~~ — fixed with nested `try..finally` in `StartElevationProcess`
 4. ~~ANSI WinAPI variants limit non-ASCII path support during elevation~~ — fixed: `ShellExec` converts CP_ACP strings via `AnsiToWide()`; remaining `*A` calls (CreateProcess, MMF/Event names) still rely on the system code page

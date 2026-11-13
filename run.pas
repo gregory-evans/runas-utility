@@ -47,7 +47,11 @@ begin
             if eventHandle = 0 then Error(ERROR_CREATE_EVENT);
             try
                 { Запустим процесс. Себя через ShellExecuteEx. С необходимыми параметрами. }
-                if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + mmfName + ' ' + eventName + ' ' + StringMode(mode)) then Error(ERROR_SHELL_EXECUTE);
+                if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + mmfName + ' ' + eventName + ' ' + StringMode(mode)) then begin
+                    { Отказ в UAC или сбой запуска — ждать событие бессмысленно, выходим сразу }
+                    WriteLn(TXT_UAC_DENIED);
+                    Error(ERROR_UAC_DENIED);
+                end;
                 { Ждем событие (дочерний процесс открыл mmf) }
                 if not Waiting(eventHandle, TIMEOUT) then Error(ERROR_ON_WAITING_EVENT);
             finally

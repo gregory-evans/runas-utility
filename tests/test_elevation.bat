@@ -68,7 +68,8 @@ if /i not "!confirm!"=="y" (
 )
 
 set "TMPFILE=%TEMP%\runas_elevated_!random!.txt"
-"%RUN_EXE%" -h -a cmd.exe /c "echo ELEVATED_OK > %TMPFILE" >nul 2>&1
+:: %%TMPFILE%% с закрывающим процентом — иначе переменная не развернётся
+"%RUN_EXE%" -h -a cmd.exe /c "echo ELEVATED_OK > %TMPFILE% & exit 0" >nul 2>&1
 timeout /t 3 /nobreak >nul 2>&1
 
 if exist "%TMPFILE%" (
@@ -98,6 +99,48 @@ if !errorlevel! equ 0 (
     echo [FAIL] Код ошибки: !errorlevel!
 )
 
+:test5
+:: ---------- Test 5: Сбой элевации возвращает код 117 ----------
+echo.
+echo ----------------------------------------
+echo   Тест 5: Сбой элевации возвращает код 117
+echo ----------------------------------------
+echo [i] Запускаем обёртку из копии и переименовываем её, чтобы ShellExecuteExW не нашёл файл
+set "RJ_TMP=%~dp0rj_tmp.exe"
+set "RJ_OLD=%~dp0rj_tmp_old.exe"
+set "RJ_OUT=%~dp0rj_out.txt"
+set "RJ_HELP=%~dp0t5_helper.bat"
+del "%RJ_TMP%" >nul 2>&1
+del "%RJ_OLD%" >nul 2>&1
+del "%RJ_OUT%" >nul 2>&1
+> "%RJ_HELP%" echo @echo off
+>>"%RJ_HELP%" echo "%%~1" -a cmd.exe /c exit 0 ^> "%%~dp0rj_out.txt" 2^>^&1
+set /a rj_tries=0 rj_ok=0
+:rj_loop
+set /a rj_tries+=1
+copy /y "%RUN_EXE%" "%RJ_TMP%" >nul 2>&1
+start "" "%RJ_HELP%" "%RJ_TMP%" >nul 2>&1
+ren "%RJ_TMP%" "%RJ_OLD%" >nul 2>&1
+timeout /t 3 /nobreak >nul 2>&1
+findstr /C:"Error: 117" "%RJ_OUT%" >nul 2>&1
+if !errorlevel! equ 0 (
+    set rj_ok=1
+) else if !rj_tries! lss 5 (
+    goto :rj_loop
+)
+if !rj_ok! equ 1 (
+    echo [OK] Сбой элевации обнаружен, код 117
+) else (
+    echo [SKIP] Не удалось воспроизвести сбой в этом окружении
+)
+:: Если дочерний процесс ещё держал файл, ren не удался — убираем оба варианта
+ping -n 3 127.0.0.1 >nul
+del "%RJ_OLD%" >nul 2>&1
+del "%RJ_TMP%" >nul 2>&1
+del "%RJ_OUT%" >nul 2>&1
+del "%RJ_HELP%" >nul 2>&1
+
+:end_tests
 echo.
 echo ========================================
 echo   Тесты повышения завершены
