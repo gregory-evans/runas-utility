@@ -11,19 +11,23 @@ const
     TIMEOUT = 10000;
     MMF_SIZE = 4096;
     ELEVATED_MARKER = '--elevated';
+type
+    { Состояние приложения }
+    TApp = record
+        mode: WORD;              { режим запуска }
+        elevation: boolean;      { нужно повышение прав }
+        command: string;         { команда }
+        parameters: string;      { параметры для команды }
+        commandLine: string;     { итоговая командная строка (команда в кавычках + параметры) }
+        mmfName: string;         { имя MMF }
+        mmfHandle: THandle;      { хендл MMF }
+        eventName: string;       { имя события }
+        eventHandle: THandle;    { хендл события }
+    end;
 
 var
-    { Состояние приложения. Глобальные переменные }
-    mode: WORD = SW_NORMAL;         { режим запуска }
-    elevation: boolean = false;     { нужно повышение прав }
-    command: string = '';           { команда }
-    parameters: string = '';        { параметры для команды }
-    commandLine: string = '';       { итоговая командная строка (команда в кавычках + параметры) }
-    { Необходимые для работы значения }
-    mmfName: string;
-    mmfHandle: THandle = 0;
-    eventName: string;
-    eventHandle: THandle;
+    app: TApp = (mode: SW_NORMAL; elevation: False; command: ''; parameters: '';
+                 commandLine: ''; mmfName: ''; mmfHandle: 0; eventName: ''; eventHandle: 0);
 
 { Уникальный суффикс для имён MMF/Event: PID перерабатывается Windows,
   поэтому к нему добавляем случайную компоненту }
@@ -32,11 +36,11 @@ begin
     result := IntToHex(Random(MaxInt), 8);
 end; { UniqueSuffix() }
 
-{ Запустит целевую команду (глобальная commandLine);
+{ Запустит целевую команду (поле commandLine структуры app);
   при неудаче завершится с ERROR_CREATE_PROCESS }
 procedure RunTarget();
 begin
-    if not RunCommand(mode, commandLine) then Halt(ERROR_CREATE_PROCESS);
+    if not RunCommand(app.mode, app.commandLine) then Halt(ERROR_CREATE_PROCESS);
 end; { RunTarget() }
 
 { Запуск себя с повышенными правами }
@@ -51,33 +55,33 @@ begin
     end else begin { Админских прав нет }
         { Создадим уникальное имя для mmf }
         suffix := UniqueSuffix();
-        mmfName := MMF_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
+        app.mmfName := MMF_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
         { Создадим файл отображаемый в память (mmf) и поместим туда строку запуска }
-        mmfHandle := CreateFileMapping(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, MMF_SIZE, pchar(mmfName));
-        if mmfHandle = 0 then Error(ERROR_CREATE_MMF);
+        app.mmfHandle := CreateFileMapping(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, MMF_SIZE, pchar(app.mmfName));
+        if app.mmfHandle = 0 then Error(ERROR_CREATE_MMF);
         try
-            if not WriteMMF(mmfHandle, MMF_SIZE, commandLine) then Error(ERROR_CANT_WRITE_MMF);
+            if not WriteMMF(app.mmfHandle, MMF_SIZE, app.commandLine) then Error(ERROR_CANT_WRITE_MMF);
             { Создадим уникальное имя для события }
-            eventName := EVENT_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
+            app.eventName := EVENT_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
             { Создаём событие в НЕСИГНАЛЬНОМ состоянии (AutoReset = False, Initial = False) }
-            eventHandle := CreateEvent(nil, False, False, pchar(eventName));
-            if eventHandle = 0 then Error(ERROR_CREATE_EVENT);
+            app.eventHandle := CreateEvent(nil, False, False, pchar(app.eventName));
+            if app.eventHandle = 0 then Error(ERROR_CREATE_EVENT);
             try
                 { Запустим процесс. Себя через ShellExecuteEx. С необходимыми параметрами. }
-                if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + mmfName + ' ' + eventName + ' ' + StringMode(mode)) then begin
+                if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + app.mmfName + ' ' + app.eventName + ' ' + StringMode(app.mode)) then begin
                     { Отказ в UAC или сбой запуска — ждать событие бессмысленно, выходим сразу }
                     WriteLn(TXT_UAC_DENIED);
                     Error(ERROR_UAC_DENIED);
                 end;
                 { Ждем событие (дочерний процесс открыл mmf) }
-                if not Waiting(eventHandle, TIMEOUT) then Error(ERROR_ON_WAITING_EVENT);
+                if not Waiting(app.eventHandle, TIMEOUT) then Error(ERROR_ON_WAITING_EVENT);
             finally
                 { Освобождаем событие }
-                CloseHandle(eventHandle);
+                CloseHandle(app.eventHandle);
             end;
         finally
             { Освобождаем mmf }
-            CloseHandle(mmfHandle);
+            CloseHandle(app.mmfHandle);
         end;
     end;
 end; { StartElevationProcess() } 
@@ -98,28 +102,28 @@ begin
         arg := ParamStr(i);
         if (Length(arg) = 2) and (arg[1] = '-') then // found option
             case arg[2] of
-                'M': mode := SW_MAXIMIZE;
-                'm': mode := SW_MINIMIZE;
-                'h': mode := SW_HIDE;
-                'n': mode := SW_NORMAL;
-                'a': elevation := true;
+                'M': app.mode := SW_MAXIMIZE;
+                'm': app.mode := SW_MINIMIZE;
+                'h': app.mode := SW_HIDE;
+                'n': app.mode := SW_NORMAL;
+                'a': app.elevation := true;
                 '?', 'H': PrintHelpAndExit(ERROR_REQUEST_HELP);
             else
                 { Неизвестный флаг: до команды — ошибка, после — обычный параметр }
-                if (command = '') then PrintHelpAndExit(ERROR_UNDEFINED_PARAMETERS)
-                else parameters += Quoted(arg) + ' ';
+                if (app.command = '') then PrintHelpAndExit(ERROR_UNDEFINED_PARAMETERS)
+                else app.parameters += Quoted(arg) + ' ';
             end {case}
         else 
-            if (command = '') then command := arg
-            else parameters += Quoted(arg) + ' ';
+            if (app.command = '') then app.command := arg
+            else app.parameters += Quoted(arg) + ' ';
     end; {for}
     { Команда должна быть указана }
-    if (command = '') then Error(ERROR_NO_COMMAND);
+    if (app.command = '') then Error(ERROR_NO_COMMAND);
     { Собираем итоговую командную строку. Путь к программе экранируем,
       чтобы CreateProcess корректно разобрал пути с пробелами }
-    commandLine := Quoted(command) + ' ' + parameters;
+    app.commandLine := Quoted(app.command) + ' ' + app.parameters;
     { Требуется ли повышение привелегий }
-    if elevation then begin
+    if app.elevation then begin
         StartElevationProcess()
     end else begin
         RunTarget();
@@ -130,29 +134,29 @@ end; { normalStart() }
 procedure ElevatedStart();
 begin
     { Разберем параметры коммандной строки }
-    mmfName := ParamStr(2);
-    eventName := ParamStr(3);
+    app.mmfName := ParamStr(2);
+    app.eventName := ParamStr(3);
     case ParamStr(4) of
-        'n': mode := SW_NORMAL;
-        'M': mode := SW_MAXIMIZE;
-        'm': mode := SW_MINIMIZE;
-        'h': mode := SW_HIDE;
-        else mode := SW_NORMAL;
+        'n': app.mode := SW_NORMAL;
+        'M': app.mode := SW_MAXIMIZE;
+        'm': app.mode := SW_MINIMIZE;
+        'h': app.mode := SW_HIDE;
+        else app.mode := SW_NORMAL;
     end; {case}
     { Откроем и прочитаем mmf }
-    mmfHandle := OpenFileMapping(FILE_MAP_READ, False, pchar(mmfName));
-    if mmfHandle = 0 then Error(ERROR_OPEN_MMF); 
-    commandLine := ReadMMF(mmfHandle, MMF_SIZE);
-    if (commandLine = '') then Error(ERROR_READ_MMF);
+    app.mmfHandle := OpenFileMapping(FILE_MAP_READ, False, pchar(app.mmfName));
+    if app.mmfHandle = 0 then Error(ERROR_OPEN_MMF); 
+    app.commandLine := ReadMMF(app.mmfHandle, MMF_SIZE);
+    if (app.commandLine = '') then Error(ERROR_READ_MMF);
     { Освободим mmf }
-    CloseHandle(mmfHandle);
+    CloseHandle(app.mmfHandle);
     { Установим Event }
     { Открываем существующий событие, созданный родителем }
-    eventHandle := OpenEvent(EVENT_MODIFY_STATE, False, pchar(eventName));
-    if eventHandle = 0 then Error(ERROR_OPEN_EVENT);
-    if not SetEvent(eventHandle) then Error(ERROR_SET_EVENT);
+    app.eventHandle := OpenEvent(EVENT_MODIFY_STATE, False, pchar(app.eventName));
+    if app.eventHandle = 0 then Error(ERROR_OPEN_EVENT);
+    if not SetEvent(app.eventHandle) then Error(ERROR_SET_EVENT);
     { Освободим event }
-    CloseHandle(eventHandle);
+    CloseHandle(app.eventHandle);
     { Выполним команду }
     RunTarget();
 end; { elevatedStart() }
