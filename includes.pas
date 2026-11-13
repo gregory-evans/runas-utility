@@ -393,6 +393,7 @@ function GetModuleHandleA(lpModuleName: PChar): THandle; stdcall; external 'kern
 function GetProcAddress(hModule: THandle; lpProcName: PChar): Pointer; stdcall; external 'kernel32' name 'GetProcAddress';
 { Все WinAPI-функции — stdcall. Явно указываем, чтобы 32-битная сборка
   корректно очищала стек (в 64-битной разницы нет) }
+function GetTickCount: DWORD; stdcall; external 'kernel32' name 'GetTickCount';
 function MultiByteToWideChar(CodePage: UINT; dwFlags: DWORD; lpMultiByteStr: LPCSTR; cchMultiByte: Integer; lpWideCharStr: LPWSTR; cchWideChar: Integer): Integer; stdcall; external 'kernel32' name 'MultiByteToWideChar';
 procedure PrintHelpAndExit(exitCode: WORD);
 function AnsiToWide(const value: string): WideString;
@@ -405,13 +406,18 @@ function ReadMMF(mmfHandle: THandle; const mmfSize: integer): string;
 function Waiting(event: THandle; const TIMEOUT: integer): boolean;
 function ShellExec(const command, parameters: string): boolean;
 function StringMode(mode: WORD): string;
-function IntToStr(Value: Longint): string;
-function IntToStr(Value: Int64): string;
+{ Только то, что реально используется в run.pas — остальное из sysutils не тянем }
 function IntToStr(Value: QWord): string;
 function IntToStr(Value: DWORD): string;
+function IntToHex(Value: Longint; Digits: integer): string;
 function GetFileName(fullPath: string): string;
 function GetProgramPart(commandLine: string): string;
 function ProgramExists(commandLine: string): boolean;
+{ Генератор случайных чисел (Mersenne Twister, алгоритм из FPC RTL sysutils).
+  Собственная копия вместо unit sysutils — чтобы не тащить весь RTL в бинарник }
+function Random(l: longint): longint;
+procedure Randomize;
+
 type
     { Функция kernel32 FileExistsA }
     TFileExFunc = function(FileName: PChar): WINBOOL; stdcall;
@@ -420,10 +426,106 @@ var
       в kernel32 старых систем этого экспорта может не быть, и статический
       импорт тогда роняет процесс ещё до main (проверено на этой машине) }
     fileExPtr: TFileExFunc;
+    { Зерно генератора случайных чисел }
+    RandSeed: Cardinal;
 
 implementation
 
-{ Возвращает тстроковое представление режима, как в параметрах }
+{ Генератор случайных чисел. Mersenne Twister — алгоритм из FPC RTL sysutils,
+  перенесён сюда, чтобы не подключать unit sysutils (экономия размера бинарника) }
+
+const
+    { Константы генератора */}
+    MTWIST_N = 624;
+    MTWIST_M = 397;
+    MTWIST_UPPER_MASK = cardinal($80000000);
+    MTWIST_LOWER_MASK = cardinal($7FFFFFFF);
+    MTWIST_MATRIX_A = cardinal($9908B0DF);
+
+var
+    { Служебное состояние генератора */}
+    OldRandSeed: Cardinal = 0;
+    mt_state: array[0..MTWIST_N - 1] of Cardinal;
+    mt_index: Cardinal = MTWIST_N + 1;
+
+procedure Randomize();
+begin
+    RandSeed := GetTickCount;
+end; { Randomize() }
+
+{$R-} { Отключаем range/overflow checking только для кода генератора */}
+{$Q-}
+
+function MTWistMixBits(u, v: Cardinal): Cardinal; inline;
+begin
+    result := (u and MTWIST_UPPER_MASK) or (v and MTWIST_LOWER_MASK);
+end; { MTWistMixBits() }
+
+function MTWistTwist(u, v: Cardinal): Cardinal; inline;
+begin
+    { Конструкция в конце эквивалентна: if odd(v) then MTWIST_MATRIX_A else 0 */}
+    result := (MTWistMixBits(u, v) shr 1) xor (cardinal(-(v and 1)) and MTWIST_MATRIX_A);
+end; { MTWistTwist() }
+
+procedure MTWistInit(seed: Cardinal);
+var i: longint;
+begin
+    mt_state[0] := seed;
+    for i := 1 to MTWIST_N - 1 do
+        mt_state[i] := cardinal(1812433253) * (mt_state[i-1] xor (mt_state[i-1] shr 30)) + i;
+    { Состояние нужно обновить */}
+    mt_index := MTWIST_N;
+end; { MTWistInit() }
+
+procedure MTWistUpdateState();
+var count: longint;
+begin
+    { Первый цикл инициализует только N-M элементов (последний обрабатывается отдельно);
+      исходный код FPC так и делает — значение этого элемента не влияет на последующие числа */}
+    for count := 0 to MTWIST_N - MTWIST_M - 1 do
+        mt_state[count] := mt_state[count + MTWIST_M] xor MTWistTwist(mt_state[count], mt_state[count+1]);
+    for count := MTWIST_N - MTWIST_M to MTWIST_N - 2 do
+        mt_state[count] := mt_state[count + (MTWIST_M - MTWIST_N)] xor MTWistTwist(mt_state[count], mt_state[count+1]);
+    mt_state[MTWIST_N-1] := mt_state[MTWIST_M-1] xor MTWistTwist(mt_state[MTWIST_N-1], mt_state[0]);
+    mt_index := 0;
+end; { MTWistUpdateState() }
+
+function MTWistU32Rand(): Cardinal;
+var l_index: Cardinal;
+begin
+    l_index := mt_index;
+    inc(mt_index);
+    if (RandSeed <> OldRandSeed) or (l_index >= MTWIST_N + 1) then begin
+        { Зерно изменилось — инициализируем заново. RandSeed инвертируется, чтобы
+          следующий вызов Randomize() с тем же зерном снова переинициализировал состояние */}
+        MTWistInit(RandSeed);
+        RandSeed := not (RandSeed);
+        OldRandSeed := RandSeed;
+        l_index := MTWIST_N;
+    end; {if}
+    if l_index = MTWIST_N then begin
+        MTWistUpdateState();
+        l_index := 0;
+        mt_index := 1;
+    end; {if}
+    result := mt_state[l_index];
+    result := result xor (result shr 11);
+    result := result xor ((result shl 7) and cardinal($9D2C5680));
+    result := result xor ((result shl 15) and cardinal($EFC60000));
+    result := result xor (result shr 18);
+end; { MTWistU32Rand() }
+
+function Random(l: longint): longint;
+begin
+    { Без этого при отрицательном l можно получить значение, равное l */}
+    if l < 0 then inc(l);
+    result := longint((Int64(MTWistU32Rand()) * l) shr 32);
+end; { Random() }
+
+{$R+} { Возвращаем range/overflow checking */}
+{$Q+}
+
+{ Возвращает текстовое представление режима, как в параметрах }
 function StringMode(mode: WORD): string;
 begin
     case mode of
@@ -493,26 +595,36 @@ begin
     result := (WaitForSingleObject(event, TIMEOUT) = WAIT_OBJECT_0);
 end; { Waiting() }
 
-{ IntToStr }
-function IntToStr(Value: Longint): string;
-begin
-    System.Str(Value, Result);
-end; { IntToStr(Value: Longint) }
-{ int64 }
-function IntToStr(Value: Int64): string;
-begin
-    System.Str(Value, Result);
-end; { IntToStr(Value: Int64) } 
-{ QWord }
-function IntToStr(Value: QWord): string;
-begin
-    System.Str(Value, Result);
-end; { IntToStr(Value: QWord) }
-{ Точное совпадение для DWORD (GetCurrentProcessId и пр.): без неявного приведения к Longint }
+{ Точное совпадение для DWORD (GetCurrentProcessId и пр.): без неявного приведения к Longint */}
 function IntToStr(Value: DWORD): string;
 begin
     result := IntToStr(QWord(Value));
 end; { IntToStr(Value: DWORD) }
+
+{ QWord — базовая версия, остальные перегрузки не используются в проекте */}
+function IntToStr(Value: QWord): string;
+begin
+    System.Str(Value, result);
+end; { IntToStr(Value: QWord) }
+
+{ Цифры для IntToHex */}
+const
+    HexDigits: array[0..15] of Char = '0123456789ABCDEF';
+
+function IntToHex(Value: Longint; Digits: integer): string;
+var i: integer;
+begin
+    if Digits = 0 then Digits := 1;
+    SetLength(result, Digits);
+    for i := 0 to Digits - 1 do begin
+        result[Digits - i] := HexDigits[Value and 15];
+        Value := Value shr 4;
+    end; {for}
+    while Value <> 0 do begin
+        result := HexDigits[Value and 15] + result;
+        Value := Value shr 4;
+    end; {while}
+end; { IntToHex() }
 
 { Запустить команду }
 function RunCommand(mode: WORD; commandLine: string): boolean;
@@ -590,7 +702,7 @@ begin
     result := q + value + q;
 end; { Quoted() }
 
-{ Проверяет на администраторские рпава }
+{ Проверяет, есть ли у процесса права администратора */}
 function IsRunningAsAdmin(): Boolean;
 var
     hToken: THandle;
@@ -598,13 +710,13 @@ var
     dwSize: DWORD;
 begin
     Result := False;
-    { Открываем токен текущего процесса с правом на запрос информации [citation:3][citation:7]}
+    { Открываем токен текущего процесса с правом на запрос информации */}
     if not OpenProcessToken(GetCurrentProcess, TOKEN_QUERY, hToken) then
         Error(ERROR_CANT_OPEN_SECURITY_TOKEN);
     dwSize := SizeOf(TOKEN_ELEVATION);
-    { Запрашиваем информацию об уровне повышения привилегий [citation:6][citation:7]
-    TokenElevation (значение 20) возвращает структуру TOKEN_ELEVATION,
-    где поле TokenIsElevated = True, если токен повышенный [citation:8] }
+    { Запрашиваем информацию об уровне повышения привилегий.
+      TokenElevation (значение 20) возвращает структуру TOKEN_ELEVATION,
+      где поле TokenIsElevated = True, если токен повышенный */}
     if GetTokenInformation(hToken, TokenElevation, @elevation, dwSize, dwSize) then
         Result := boolean(elevation.TokenIsElevated);
     CloseHandle(hToken);

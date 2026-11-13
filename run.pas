@@ -3,7 +3,7 @@ strip run.exe }
 {$mode Objfpc}{$H+}
 program run;
 uses
-    includes, sysutils;
+    includes;
 
 const
     MMF_PREFIX = 'Local\mmf_';

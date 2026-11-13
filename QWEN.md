@@ -87,7 +87,7 @@ Tests are batch scripts that call `run.exe` directly and check exit codes / outp
 - All external WinAPI declarations carry an explicit `stdcall` calling convention (required for correct i386-Win32 builds; without it `CreateProcessA` crashes with Runtime error 216)
 - ANSI (`*A`) versions of WinAPI are used for MMF/Event naming and process creation; WideChar (`*W`) for `ShellExecuteExW`, fed by the explicit `AnsiToWide()` conversion (`MultiByteToWideChar(CP_ACP, ...)`)
 - Error handling via `Halt(errorCode)` with custom codes 101–118 defined in `includes.pas`
-- No external libraries or RTL dependencies beyond `System`
+- No external libraries or RTL dependencies beyond `System`: even `Random`/`Randomize` (Mersenne Twister, algorithm taken from FPC's sysutils) and the needed `IntToStr`/`IntToHex` overloads are implemented in `includes.pas`, so unit `sysutils` is not linked into the binary
 - Existence check before launch: `ProgramExists()` + code 118; the kernel32 `FileExistsA` export is resolved lazily via `GetProcAddress` because it is absent on this legacy system (a static import would kill the process at load time)
 - Application state is kept in a single record `TApp` (`app` is the only global variable); all handles are initialised to zero
 
