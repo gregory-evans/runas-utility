@@ -43,8 +43,9 @@
   Добавить отдельный сигнал или проверку `hProcess` для вывода понятного сообщения.  
   ✅ Исправлено: новый код `ERROR_UAC_DENIED = 117` + сообщение `TXT_UAC_DENIED`; при неудаче ShellExecuteEx выходим сразу, не дожидаясь события.
 
-- [ ] **Добавить случайную компоненту в имя MMF / Event** (`run.pas`, константы)  
-  PID перерабатывается Windows — добавить `Random()` суффикс для защиты от коллизий.
+- [x] **Добавить случайную компоненту в имя MMF / Event** (`run.pas`, константы)  
+  PID перерабатывается Windows — добавить `Random()` суффикс для защиты от коллизий.  
+  ✅ Исправлено: `UniqueSuffix()` (8 hex-цифр из `Random(MaxInt)`), `Randomize` при старте; имена MMF/Event = префикс + PID + `_` + суффикс.
 
 - [ ] **Устранить дублирование логики запуска команды** (`run.pas`)  
   `RunCommand(...)` вызывается в 3 местах (`NormalStart`, `StartElevationProcess`, `ElevatedStart`).  
@@ -59,4 +60,3 @@
   `mode`, `elevation`, `command`, `parameters`, `mmfName`, `mmfHandle`, `eventName`, `eventHandle` — всё в global scope.
 
 - [ ] **Добавить `FileExists(command)` перед запуском** (`includes.pas`, `RunCommand`)  
-  Дать понятное сообщение, если файл команды не существует, вместо generic `ERROR_CREATE_PROCESS`.

@@ -3,7 +3,7 @@ strip run.exe }
 {$mode Objfpc}{$H+}
 program run;
 uses
-    includes;
+    includes, sysutils;
 
 const
     MMF_PREFIX = 'Local\mmf_';
@@ -25,8 +25,17 @@ var
     eventName: string;
     eventHandle: THandle;
 
+{ Уникальный суффикс для имён MMF/Event: PID перерабатывается Windows,
+  поэтому к нему добавляем случайную компоненту }
+function UniqueSuffix(): string;
+begin
+    result := IntToHex(Random(MaxInt), 8);
+end; { UniqueSuffix() }
+
 { Запуск себя с повышенными правами }
 procedure StartElevationProcess();
+var
+    suffix: string;
 begin
     { Проверим, нет ли у нас уже админских прав? }
     if IsRunningAsAdmin() then begin
@@ -34,14 +43,15 @@ begin
         if not RunCommand(mode, commandLine) then Halt(ERROR_CREATE_PROCESS);
     end else begin { Админских прав нет }
         { Создадим уникальное имя для mmf }
-        mmfName := MMF_PREFIX + inttostr(GetCurrentProcessId());
+        suffix := UniqueSuffix();
+        mmfName := MMF_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
         { Создадим файл отображаемый в память (mmf) и поместим туда строку запуска }
         mmfHandle := CreateFileMapping(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, MMF_SIZE, pchar(mmfName));
         if mmfHandle = 0 then Error(ERROR_CREATE_MMF);
         try
             if not WriteMMF(mmfHandle, MMF_SIZE, commandLine) then Error(ERROR_CANT_WRITE_MMF);
             { Создадим уникальное имя для события }
-            eventName := EVENT_PREFIX + inttostr(GetCurrentProcessId());
+            eventName := EVENT_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
             { Создаём событие в НЕСИГНАЛЬНОМ состоянии (AutoReset = False, Initial = False) }
             eventHandle := CreateEvent(nil, False, False, pchar(eventName));
             if eventHandle = 0 then Error(ERROR_CREATE_EVENT);
@@ -141,6 +151,7 @@ begin
 end; { elevatedStart() }
 
 begin
+    Randomize; { Инициализация генератора случайных чисел для UniqueSuffix }
     { Запущено с повышением привелегий? }
     if (ParamStr(1) = ELEVATED_MARKER) then ElevatedStart()
     else NormalStart();

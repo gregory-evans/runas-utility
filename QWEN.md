@@ -26,7 +26,7 @@ A **Free Pascal** command-line utility that launches programs with optional **ad
 
 ### Key Constants
 
-- `MMF_PREFIX = 'Local\mmf_'`, `EVENT_PREFIX = 'Global\event_'`
+- `MMF_PREFIX = 'Local\mmf_'`, `EVENT_PREFIX = 'Global\event_'`; полное имя = префикс + PID + `_` + 8 hex-цифр (`UniqueSuffix()`)
 - `MMF_SIZE = 4096`, `TIMEOUT = 10000` ms
 - `ELEVATED_MARKER = '--elevated'`
 
