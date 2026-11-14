@@ -8,26 +8,26 @@ flowchart TD
     %% ---- Ветка обычного запуска ----
     CheckElevated -- Нет --> NormalStart[NormalStart]
     NormalStart --> CheckParams{Есть<br/>параметры?}
-    CheckParams -- Нет --> PrintHelp[Вывод справки<br/>exit 102]
+    CheckParams -- Нет --> PrintHelp[Вывод справки<br/>exit 101]
     PrintHelp --> EndNormal([Выход])
 
     CheckParams -- Да --> ParseArgs[Парсинг аргументов<br/>mode, elevation, command, params]
     ParseArgs --> NeedElev{Флаг -a?}
 
-    NeedElev -- Нет --> RunDirect[RunCommand<br/>CreateProcess]
+    NeedElev -- Нет --> RunDirect[RunCommand<br/>CreateProcessW<br/>ProgramExists → код 118]
     RunDirect --> EndNormal
 
     NeedElev -- Да --> CheckAdmin{Уже админ?<br/>IsRunningAsAdmin}
 
-    CheckAdmin -- Да --> RunDirect2[RunCommand<br/>CreateProcess]
+    CheckAdmin -- Да --> RunDirect2[RunCommand<br/>CreateProcessW<br/>ProgramExists → код 118]
     RunDirect2 --> EndNormal
 
     %% ---- Ветка повышения прав ----
-    CheckAdmin -- Нет --> CreateMMF[Создать MMF<br/>Local\mmf_<PID>]
+    CheckAdmin -- Нет --> CreateMMF[Создать MMF<br/>Local\mmf_<PID>_<suffix>]
     CreateMMF --> WriteMMF[Записать команду<br/>в MMF]
-    WriteMMF --> CreateEvent[Создать Event<br/>Global\event_<PID><br/>несигнальный]
-    CreateEvent --> ShellExec[ShellExecuteEx<br/>runas себя + --elevated<br/>+ имена MMF / Event]
-    ShellExec --> WaitEvent[Ожидание Event<br/>таймаут 10 сек]
+    WriteMMF --> CreateEvent[Создать Event<br/>Global\event_<PID>_<suffix><br/>несигнальный]
+    CreateEvent --> ShellExec[ShellExecuteExW runas<br/>себя + --elevated + имена<br/>MMF / Event + флаг -w (5-й арг.)]
+    ShellExec --> WaitEvent[Ожидание {Event, hProcess}<br/>таймаут 10 сек;<br/>смерть дочернего → exit 119]
     WaitEvent --> CloseHandles[Закрыть Event + MMF]
     CloseHandles --> EndNormal
 
@@ -40,7 +40,7 @@ flowchart TD
     CloseMMF --> OpenEvent[Открыть Event<br/>OpenEvent]
     OpenEvent --> SetEvent[SetEvent<br/>сигнал родителю]
     SetEvent --> CloseEvent[Закрыть Event]
-    CloseEvent --> RunElevated[RunCommand<br/>CreateProcess<br/>с правами админа]
+    CloseEvent --> RunElevated[RunCommand<br/>CreateProcessW с правами admin<br/>ProgramExists → код 118]
     RunElevated --> EndElevated([Выход])
 
     %% ---- Стили ----
