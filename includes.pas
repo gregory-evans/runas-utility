@@ -253,6 +253,8 @@ const
     ERROR_UAC_DENIED                = 117;
     ERROR_COMMAND_NOT_FOUND         = 118;
     ERROR_ELEVATED_CHILD_FAILED     = 119;
+    { Text resources for errors - loaded from messages.inc, replace that file to localize }
+    {$i messages.inc}
     { OpenProcessToken  }
     TOKEN_ADJUST_DEFAULT = 128;
     TOKEN_ADJUST_GROUPS = 64;
@@ -679,25 +681,25 @@ end; { GetFileName() }
 function ErrorText(code: WORD): string;
 begin
     case code of
-        ERROR_NO_PARAMETERS:            result := 'no parameters were passed';
-        ERROR_REQUEST_HELP:             result := 'help was requested';
-        ERROR_UNDEFINED_PARAMETERS:     result := 'unknown flag before the command';
-        ERROR_CREATE_PROCESS:           result := 'failed to create the process';
-        ERROR_CANT_OPEN_SECURITY_TOKEN: result := 'failed to open the security token of the current process';
-        ERROR_CANT_WRITE_MMF:           result := 'failed to write the command line into the shared memory (MMF)';
-        ERROR_CREATE_MMF:               result := 'failed to create the shared memory file (MMF)';
-        ERROR_CREATE_EVENT:             result := 'failed to create the synchronization event';
-        ERROR_ON_WAITING_EVENT:         result := 'timeout waiting for the event - the elevated child process is still alive';
-        ERROR_SHELL_EXECUTE:            result := 'ShellExecute failed';
-        ERROR_READ_MMF:                 result := 'failed to read the command line from the shared memory (MMF)';
-        ERROR_OPEN_MMF:                 result := 'failed to open the shared memory file (MMF)';
-        ERROR_MAP_MMF:                  result := 'failed to map the shared memory file (MMF) into address space';
-        ERROR_OPEN_EVENT:               result := 'failed to open the synchronization event';
-        ERROR_SET_EVENT:                result := 'failed to signal the synchronization event';
-        ERROR_NO_COMMAND:               result := 'only flags were passed, no command was specified';
-        ERROR_UAC_DENIED:               result := 'the UAC prompt was denied or the elevated launch failed to start';
-        ERROR_COMMAND_NOT_FOUND:        result := 'executable does not exist at the specified path';
-        ERROR_ELEVATED_CHILD_FAILED:    result := 'the elevated process terminated before reading the command from the shared memory (MMF)';
+        ERROR_NO_PARAMETERS : result := ERROR_NO_PARAMETERS_TEXT;
+        ERROR_REQUEST_HELP : result := ERROR_REQUEST_HELP_TEXT;
+        ERROR_UNDEFINED_PARAMETERS : result := ERROR_UNDEFINED_PARAMETERS_TEXT;
+        ERROR_CREATE_PROCESS : result := ERROR_CREATE_PROCESS_TEXT;
+        ERROR_CANT_OPEN_SECURITY_TOKEN : result := ERROR_CANT_OPEN_SECURITY_TOKEN_TEXT;
+        ERROR_CANT_WRITE_MMF : result := ERROR_CANT_WRITE_MMF_TEXT;
+        ERROR_CREATE_MMF : result := ERROR_CREATE_MMF_TEXT;
+        ERROR_CREATE_EVENT : result := ERROR_CREATE_EVENT_TEXT;
+        ERROR_ON_WAITING_EVENT : result := ERROR_ON_WAITING_EVENT_TEXT;
+        ERROR_SHELL_EXECUTE : result := ERROR_SHELL_EXECUTE_TEXT;
+        ERROR_READ_MMF : result := ERROR_READ_MMF_TEXT;
+        ERROR_OPEN_MMF : result := ERROR_OPEN_MMF_TEXT;
+        ERROR_MAP_MMF : result := ERROR_MAP_MMF_TEXT;
+        ERROR_OPEN_EVENT : result := ERROR_OPEN_EVENT_TEXT;
+        ERROR_SET_EVENT : result := ERROR_SET_EVENT_TEXT;
+        ERROR_NO_COMMAND : result := ERROR_NO_COMMAND_TEXT;
+        ERROR_UAC_DENIED : result := ERROR_UAC_DENIED_TEXT;
+        ERROR_COMMAND_NOT_FOUND : result := ERROR_COMMAND_NOT_FOUND_TEXT;
+        ERROR_ELEVATED_CHILD_FAILED : result := ERROR_ELEVATED_CHILD_FAILED_TEXT;
     else
         result := '(unknown error)';
     end; {case}

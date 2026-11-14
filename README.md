@@ -153,6 +153,8 @@ run.exe -M notepad.exe "C:\file.txt"
 | `118` | `ERROR_COMMAND_NOT_FOUND` | The executable does not exist at the given path (checked via `GetFileAttributesW`; bare names without separators are resolved through PATH by CreateProcess itself) |
 | `119` | `ERROR_ELEVATED_CHILD_FAILED` | The elevated process terminated before reading the command from the MMF |
 
+Every error is printed as `Error: <code> - <message>`. The messages are not hardcoded in the sources but loaded from **`messages.inc`** (one text constant per code) - replace that file with a translated one to localize the utility, no source changes required.
+
 ---
 
 ## Testing
@@ -162,6 +164,7 @@ The `tests/` directory contains automated batch suites:
 - `run_tests.bat` - main suite (launch modes, quoting, error codes)
 - `test_parameters.bat` - option parsing, `-w`, verbose mode, long aliases
 - `test_build.bat` - verifies the build script works
+- `test_messages.bat` - error messages and the localization mechanism (`messages.inc`)
 - `test_elevation.bat` - elevation scenarios (the UAC-dependent tests are skipped when no operator is present)
 
 Run them from a command prompt:
