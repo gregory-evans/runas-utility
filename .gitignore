@@ -1,21 +1,19 @@
-# Скомпилированные файлы
+# Compiled files
 *.exe
 *.o
 *.ppu
 *.a
 
-# Временные файлы
+# Temporary files
 *.tmp
 *.bak
 
-# Артефакты ctags
+# ctags artifacts
 GPATH
 GTAGS
 GRTAGS
 
-# IDE
+# IDE / OS
 .vscode/
-
-# Windows
 Thumbs.db
 *.log

@@ -63,12 +63,12 @@ run.exe [-h | -m | -M | -n] [-w] [-v] [-a] COMMAND [PARAM1 "PARAM 2" ...]
 | `-m` / `--minimize` | `SW_MINIMIZE` | Minimized to the tray |
 | `-M` / `--maximize` | `SW_MAXIMIZE` | Maximized across the screen |
 | `-h` / `--hide` | `SW_HIDE` | Hidden launch |
-| `-w` / `--nowindow` | — | No console window at all (`CREATE_NO_WINDOW`; together with `-a` the elevated copy also gets `SEE_MASK_NO_CONSOLE`) |
-| `-v` / `--verbose` | — | Verbose output of intermediate steps to stderr (debugging) |
-| `-a` / `--admin` | — | Launch with administrator rights |
-| `-?` / `--help` | — | Print help |
+| `-w` / `--nowindow` | - | No console window at all (`CREATE_NO_WINDOW`; together with `-a` the elevated copy also gets `SEE_MASK_NO_CONSOLE`) |
+| `-v` / `--verbose` | - | Verbose output of intermediate steps to stderr (debugging) |
+| `-a` / `--admin` | - | Launch with administrator rights |
+| `-?` / `--help` | - | Print help |
 
-> Long forms (`--…`) are recognized **only before the command**; after the command any dash-prefixed argument is treated as a parameter of the target program.
+> Long forms (`--...`) are recognized **only before the command**; after the command any dash-prefixed argument is treated as a parameter of the target program.
 
 ### Arguments
 
@@ -159,10 +159,10 @@ run.exe -M notepad.exe "C:\file.txt"
 
 The `tests/` directory contains automated batch suites:
 
-- `run_tests.bat` — main suite (launch modes, quoting, error codes)
-- `test_parameters.bat` — option parsing, `-w`, verbose mode, long aliases
-- `test_build.bat` — verifies the build script works
-- `test_elevation.bat` — elevation scenarios (the UAC-dependent tests are skipped when no operator is present)
+- `run_tests.bat` - main suite (launch modes, quoting, error codes)
+- `test_parameters.bat` - option parsing, `-w`, verbose mode, long aliases
+- `test_build.bat` - verifies the build script works
+- `test_elevation.bat` - elevation scenarios (the UAC-dependent tests are skipped when no operator is present)
 
 Run them from a command prompt:
 
