@@ -380,9 +380,7 @@ const
                 '    -a, --admin      Run as Administrator.'+#10#13+
                 '    -?, --help       Print this help.'+#10#13+#10#13+
                 '* long aliases must be used before the command only.';
-    TXT_UAC_DENIED = 'Elevation failed: user rejected the UAC prompt or the elevated launch did not start.';
-    TXT_COMMAND_NOT_FOUND = 'Command not found: executable does not exist at the specified path.';
-    TXT_ELEVATED_CHILD_FAILED = 'Elevation failed: the elevated process terminated before reading the command.';
+
 
 
 { Wide versions of WinAPI: string arguments are LPWSTR (MMF/Event names, command line) }
@@ -677,10 +675,38 @@ begin
     result := fullPath;
 end; { GetFileName() }
 
-{ Print an error and exit }
+{ Returns a human-readable message for an error code (single source of truth) }
+function ErrorText(code: WORD): string;
+begin
+    case code of
+        ERROR_NO_PARAMETERS:            result := 'no parameters were passed';
+        ERROR_REQUEST_HELP:             result := 'help was requested';
+        ERROR_UNDEFINED_PARAMETERS:     result := 'unknown flag before the command';
+        ERROR_CREATE_PROCESS:           result := 'failed to create the process';
+        ERROR_CANT_OPEN_SECURITY_TOKEN: result := 'failed to open the security token of the current process';
+        ERROR_CANT_WRITE_MMF:           result := 'failed to write the command line into the shared memory (MMF)';
+        ERROR_CREATE_MMF:               result := 'failed to create the shared memory file (MMF)';
+        ERROR_CREATE_EVENT:             result := 'failed to create the synchronization event';
+        ERROR_ON_WAITING_EVENT:         result := 'timeout waiting for the event - the elevated child process is still alive';
+        ERROR_SHELL_EXECUTE:            result := 'ShellExecute failed';
+        ERROR_READ_MMF:                 result := 'failed to read the command line from the shared memory (MMF)';
+        ERROR_OPEN_MMF:                 result := 'failed to open the shared memory file (MMF)';
+        ERROR_MAP_MMF:                  result := 'failed to map the shared memory file (MMF) into address space';
+        ERROR_OPEN_EVENT:               result := 'failed to open the synchronization event';
+        ERROR_SET_EVENT:                result := 'failed to signal the synchronization event';
+        ERROR_NO_COMMAND:               result := 'only flags were passed, no command was specified';
+        ERROR_UAC_DENIED:               result := 'the UAC prompt was denied or the elevated launch failed to start';
+        ERROR_COMMAND_NOT_FOUND:        result := 'executable does not exist at the specified path';
+        ERROR_ELEVATED_CHILD_FAILED:    result := 'the elevated process terminated before reading the command from the shared memory (MMF)';
+    else
+        result := '(unknown error)';
+    end; {case}
+end; { ErrorText() }
+
+{ Print an error code with its message and exit }
 procedure Error(exitCode: WORD);
 begin
-    WriteLn('Error: ', exitCode);
+    WriteLn('Error: ', exitCode, ' - ', ErrorText(exitCode));
     Halt(exitCode);
 end; { Error() }
 

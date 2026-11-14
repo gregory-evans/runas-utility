@@ -69,15 +69,13 @@ end; { VLog() }
 procedure RunTarget();
 var flags: DWORD;
 begin
-    if not ProgramExists(app.commandLine) then begin
-        WriteLn(TXT_COMMAND_NOT_FOUND);
+    if not ProgramExists(app.commandLine) then
         Error(ERROR_COMMAND_NOT_FOUND);
-    end;
     { By default the target gets a new console; with -w no console is created at all }
     flags := CREATE_NEW_CONSOLE;
     if app.noWindow then flags := CREATE_NO_WINDOW;
     VLog('launching target: ' + app.commandLine);
-    if not RunCommand(flags, app.mode, app.commandLine) then Halt(ERROR_CREATE_PROCESS);
+    if not RunCommand(flags, app.mode, app.commandLine) then Error(ERROR_CREATE_PROCESS);
 end; { RunTarget() }
 
 { Launches itself with elevated rights }
@@ -119,7 +117,6 @@ begin
                 VLog('launching elevated copy via ShellExecuteEx');
                 if not ShellExec(ParamStr(0), ELEVATED_MARKER + ' ' + app.mmfName + ' ' + app.eventName + ' ' + StringMode(app.mode) + ' ' + wFlag, app.noWindow, elevatedProc) then begin
                     { UAC denial or launch failure - waiting for the event makes no sense, exit immediately }
-                    WriteLn(TXT_UAC_DENIED);
                     Error(ERROR_UAC_DENIED);
                 end;
                 { Wait: either the event (the child opened the mmf) or death of the child process.
@@ -136,7 +133,6 @@ begin
                     childExitCode := $FFFFFFFF;
                     GetExitCodeProcess(elevatedProc, childExitCode);
                     VLog('elevated child exited with code ' + IntToStr(childExitCode) + ' before signaling');
-                    WriteLn(TXT_ELEVATED_CHILD_FAILED);
                     CloseHandle(elevatedProc);
                     Error(ERROR_ELEVATED_CHILD_FAILED);
                 end else begin
