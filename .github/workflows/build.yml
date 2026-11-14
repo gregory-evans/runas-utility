@@ -1,6 +1,10 @@
 name: Build
 
-on: [push, pull_request]
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
 
 jobs:
   build:
@@ -42,3 +46,10 @@ jobs:
         with:
           name: run.exe
           path: run.exe
+
+      # Tagged builds attach the binary to the GitHub release for that tag.
+      - name: Attach binary to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: gh release upload "$GITHUB_REF_NAME" run.exe --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
