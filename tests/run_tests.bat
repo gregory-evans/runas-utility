@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: ========================================
-::  RunAs Utility — Основной скрипт тестирования
+::  RunAs Utility - main test suite
 :: ========================================
 
 set "TESTS_DIR=%~dp0"
@@ -18,11 +18,11 @@ color 07
 
 echo.
 echo ========================================
-echo   RunAs Utility — Test Suite
+echo   RunAs Utility - Test Suite
 echo ========================================
 echo.
 
-:: ---------- Проверка существования бинарника ----------
+:: ---------- Check that the binary exists ----------
 if not exist "%RUN_EXE%" (
     echo [!] run.exe not found. Attempting build...
     call "%BUILD_DIR%\build.bat"
@@ -35,7 +35,7 @@ if not exist "%RUN_EXE%" (
 
 echo.
 echo ----------------------------------------
-echo   Test 1: No parameters → exit code 101
+echo   Test 1: No parameters - exit code 101
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" >nul 2>&1
@@ -49,7 +49,7 @@ if !errorlevel! equ 101 (
 
 echo.
 echo ----------------------------------------
-echo   Test 2: -? flag → exit code 102
+echo   Test 2: -? flag - exit code 102
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" -? >nul 2>&1
@@ -63,7 +63,7 @@ if !errorlevel! equ 102 (
 
 echo.
 echo ----------------------------------------
-echo   Test 3: -H flag → exit code 102
+echo   Test 3: -H flag - exit code 102
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" -H >nul 2>&1
@@ -77,7 +77,7 @@ if !errorlevel! equ 102 (
 
 echo.
 echo ----------------------------------------
-echo   Test 4: Invalid flag → exit code 103
+echo   Test 4: Invalid flag - exit code 103
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" -x >nul 2>&1
@@ -94,8 +94,8 @@ echo ----------------------------------------
 echo   Test 5: Help output contains version
 echo ----------------------------------------
 set /a total+=1
-:: Прямой пайп: for/f хранит только последнюю строку вывода
-"%RUN_EXE%" -? 2>nul | findstr /C:"RunAs Utility v1.0" >nul 2>&1
+:: Direct pipe: for/f would keep only the last line of the output
+"%RUN_EXE%" -? 2>nul | findstr /R "RunAs Utility v[0-9]" >nul 2>&1
 if !errorlevel! equ 0 (
     echo [PASS] Help contains version string
     set /a passed+=1
@@ -152,9 +152,9 @@ echo   Test 9: Write output to temp file
 echo ----------------------------------------
 set /a total+=1
 set "TMPFILE=%TEMP%\runas_test_!random!.txt"
-:: %%TMPFILE%% с закрывающим процентом — иначе переменная не развернётся
+:: %%TMPFILE%% with the closing percent - otherwise the variable will not expand
 "%RUN_EXE%" cmd.exe /c "echo TEST_OUTPUT > %TMPFILE% & exit 0" >nul 2>&1
-:: runas завершается сразу после запуска — ждём, пока дочерний процесс запишет файл
+:: runas exits right after launching - wait until the child process writes the file
 set /a wait_tries=0
 :wait_test9
 if exist "%TMPFILE%" goto test9_check
@@ -240,26 +240,26 @@ echo ----------------------------------------
 echo   Test 14: Combined flags (-n -a)
 echo ----------------------------------------
 set /a total+=1
-:: This test will trigger UAC — skip in automated runs
+:: This test will trigger UAC - skip in automated runs
 echo [SKIP] Requires manual UAC confirmation
 set /a skipped+=1
 set /a total-=1
 
 echo.
 echo ========================================
-echo   Результаты тестирования
+echo   Test results
 echo ========================================
-echo   Всего:   !total!
-echo   Прошло:  !passed!
-echo   Падено:  !failed!
-echo   Пропущ.: !skipped!
+echo   Total:   !total!
+echo   Passed:  !passed!
+echo   Failed:  !failed!
+echo   Skipped: !skipped!
 echo ========================================
 
 if !failed! equ 0 (
-    echo [OK] Все тесты пройдены!
+    echo [OK] All tests passed!
     color 2F
 ) else (
-    echo [!] Есть проваленные тесты.
+    echo [!] Some tests failed.
     color 4F
 )
 

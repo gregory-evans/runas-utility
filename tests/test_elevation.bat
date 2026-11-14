@@ -2,8 +2,8 @@
 setlocal enabledelayedexpansion
 
 :: ========================================
-::  Тесты повышения привилегий
-::  ВНИМАНИЕ: требуют ручного подтверждения UAC
+::  Privilege elevation tests
+::  NOTE: require manual UAC confirmation
 :: ========================================
 
 set "BUILD_DIR=%~dp0.."
@@ -11,101 +11,101 @@ set "RUN_EXE=%BUILD_DIR%\run.exe"
 
 echo.
 echo ========================================
-echo   Тесты повышения привилегий
+echo   Privilege elevation tests
 echo ========================================
-echo [!] Эти тесты требуют ручного подтверждения UAC
-echo     Нажмите «Да» в каждом диалоге
+echo [!] These tests require manual UAC confirmation
+echo     Press "Yes" in each dialog
 echo.
 
 if not exist "%RUN_EXE%" (
-    echo [!] run.exe не найден. Запуск сборки...
+    echo [!] run.exe not found. Building...
     call "%BUILD_DIR%\build.bat"
 )
 
-:: ---------- Тест 1: Проверка текущего уровня прав ----------
+:: ---------- Test 1: Check the current privilege level ----------
 echo ----------------------------------------
-echo   Тест 1: Определение текущих прав
+echo   Test 1: Determine current privileges
 echo ----------------------------------------
-echo Запуск run.exe БЕЗ флага -a (должен завершиться без UAC)...
+echo Launching run.exe WITHOUT the -a flag (must finish without UAC)...
 "%RUN_EXE%" cmd.exe /c "whoami /priv >nul & exit 0" >nul 2>&1
 if !errorlevel! equ 0 (
-    echo [OK] Запуск без повышения прав работает
+    echo [OK] Launch without elevation works
 ) else (
-    echo [FAIL] Код ошибки: !errorlevel!
+    echo [FAIL] Error code: !errorlevel!
 )
 
-:: ---------- Тест 2: Запуск с повышением прав ----------
+:: ---------- Test 2: Launch with elevated privileges ----------
 echo.
 echo ----------------------------------------
-echo   Тест 2: Запуск с флагом -a (UAC)
+echo   Test 2: Launch with the -a flag (UAC)
 echo ----------------------------------------
-echo [!] Будет показано окно UAC — подтвердите запуск
-set /p "confirm=Продолжить? (y/n): "
+echo [!] A UAC dialog will appear - confirm the launch
+set /p "confirm=Continue? (y/n): "
 if /i not "!confirm!"=="y" (
-    echo [SKIP] Тест пропущен по запросу
+    echo [SKIP] Test skipped on request
     goto :test3
 )
 
 "%RUN_EXE%" -a cmd.exe /c "echo elevated & exit 0" >nul 2>&1
 if !errorlevel! equ 0 (
-    echo [OK] Запуск с повышением прав успешен
+    echo [OK] Launch with elevation succeeded
 ) else (
-    echo [FAIL] Код ошибки: !errorlevel!
-    echo        Возможно, UAC было отклонено
+    echo [FAIL] Error code: !errorlevel!
+    echo        Possibly the UAC prompt was denied
 )
 
 :test3
-:: ---------- Тест 3: Скрытый запуск с правами ----------
+:: ---------- Test 3: Hidden launch with privileges ----------
 echo.
 echo ----------------------------------------
-echo   Тест 3: Скрытый запуск с правами (-h -a)
+echo   Test 3: Hidden launch with privileges (-h -a)
 echo ----------------------------------------
-echo [!] Будет показано окно UAC — подтвердите запуск
-set /p "confirm=Продолжить? (y/n): "
+echo [!] A UAC dialog will appear - confirm the launch
+set /p "confirm=Continue? (y/n): "
 if /i not "!confirm!"=="y" (
-    echo [SKIP] Тест пропущен по запросу
+    echo [SKIP] Test skipped on request
     goto :test4
 )
 
 set "TMPFILE=%TEMP%\runas_elevated_!random!.txt"
-:: %%TMPFILE%% с закрывающим процентом — иначе переменная не развернётся
+:: %%TMPFILE%% with the closing percent - otherwise the variable will not expand
 "%RUN_EXE%" -h -a cmd.exe /c "echo ELEVATED_OK > %TMPFILE% & exit 0" >nul 2>&1
 timeout /t 3 /nobreak >nul 2>&1
 
 if exist "%TMPFILE%" (
     findstr /C:"ELEVATED_OK" "%TMPFILE%" >nul 2>&1
     if !errorlevel! equ 0 (
-        echo [OK] Скрытый запуск с правами успешен
+        echo [OK] Hidden launch with privileges succeeded
         del "%TMPFILE%" >nul 2>&1
     ) else (
-        echo [FAIL] Файл создан, но содержимое неверно
+        echo [FAIL] File created, but the content is wrong
         del "%TMPFILE%" >nul 2>&1
     )
 ) else (
-    echo [FAIL] Файл не создан — возможно, UAC отклонено
+    echo [FAIL] File was not created - possibly the UAC prompt was denied
 )
 
 :test4
-:: ---------- Тест 4: Проверка работы без UAC (если уже админ) ----------
+:: ---------- Test 4: Check operation without UAC (if already admin) ----------
 echo.
 echo ----------------------------------------
-echo   Тест 4: Повторный запрос прав (уже админ?)
+echo   Test 4: Requesting privileges again (already admin?)
 echo ----------------------------------------
-echo Запуск whoami для проверки текущего пользователя...
+echo Launching whoami to check the current user...
 "%RUN_EXE%" cmd.exe /c "whoami /user" >nul 2>&1
 if !errorlevel! equ 0 (
-    echo [OK] whoami выполнен
+    echo [OK] whoami executed
 ) else (
-    echo [FAIL] Код ошибки: !errorlevel!
+    echo [FAIL] Error code: !errorlevel!
 )
 
 :test5
-:: ---------- Test 5: Сбой элевации возвращает код 117 ----------
+:: ---------- Test 5: Elevation failure returns code 117 ----------
 echo.
 echo ----------------------------------------
-echo   Тест 5: Сбой элевации возвращает код 117
+echo   Test 5: Elevation failure returns code 117
 echo ----------------------------------------
-echo [i] Запускаем обёртку из копии и переименовываем её, чтобы ShellExecuteExW не нашёл файл
+echo [i] Launch the wrapper from a copy, then rename it so ShellExecuteExW cannot find the file
 set "RJ_TMP=%~dp0rj_tmp.exe"
 set "RJ_OLD=%~dp0rj_tmp_old.exe"
 set "RJ_OUT=%~dp0rj_out.txt"
@@ -129,44 +129,44 @@ if !errorlevel! equ 0 (
     goto :rj_loop
 )
 if !rj_ok! equ 1 (
-    echo [OK] Сбой элевации обнаружен, код 117
+    echo [OK] Elevation failure detected, code 117
 ) else (
-    echo [SKIP] Не удалось воспроизвести сбой в этом окружении
+    echo [SKIP] Could not reproduce the failure in this environment
 )
-:: Если дочерний процесс ещё держал файл, ren не удался — убираем оба варианта
+:: If a child process still held the file, ren failed - remove both variants
 ping -n 3 127.0.0.1 >nul
 del "%RJ_OLD%" >nul 2>&1
 del "%RJ_TMP%" >nul 2>&1
 del "%RJ_OUT%" >nul 2>&1
 del "%RJ_HELP%" >nul 2>&1
 
-:: ---------- Test 6: New wait logic — elevated launch success regression ----------
+:: ---------- Test 6: New wait logic - elevated launch success regression ----------
 echo.
 echo ----------------------------------------
-echo   Test 6: Elevated launch completes, child ran target
+echo   Test 6: Elevated launch completes, child ran the target
 echo ----------------------------------------
-echo [!] Будет показано окно UAC — подтвердите запуск
-set /p "confirm=Продолжить? (y/n): "
+echo [!] A UAC dialog will appear - confirm the launch
+set /p "confirm=Continue? (y/n): "
 if /i not "!confirm!"=="y" (
-    echo [SKIP] Тест пропущен по запросу
+    echo [SKIP] Test skipped on request
     goto :end_tests
 )
 set "T6_FILE=%~dp0t6_out.txt"
 del "%T6_FILE%" >nul 2>nul
 "%RUN_EXE%" -a cmd.exe /c "echo T6-OK > %T6_FILE% 2>&1" >nul 2>&1
 if !errorlevel! neq 0 (
-    echo [FAIL] Родитель завершился с кодом !errorlevel! (ожидался 0)
+    echo [FAIL] Parent exited with code !errorlevel! (expected 0)
 ) else (
     ping -n 5 127.0.0.1 >nul
     if exist "%T6_FILE%" (
         findstr /C:"T6-OK" "%T6_FILE%" >nul
         if !errorlevel! equ 0 (
-            echo [OK] Элевированный запуск завершён, дочерний выполнил цель
+            echo [OK] Elevated launch completed, child ran the target
         ) else (
-            echo [FAIL] Файл создан без ожидаемого содержимого
+            echo [FAIL] File created without the expected content
         )
     ) else (
-        echo [FAIL] Дочерний процесс не создал файл цели
+        echo [FAIL] Child process did not create the target file
     )
 )
 del "%T6_FILE%" >nul 2>nul
@@ -174,7 +174,7 @@ del "%T6_FILE%" >nul 2>nul
 :end_tests
 echo.
 echo ========================================
-echo   Тесты повышения завершены
+echo   Elevation tests finished
 echo ========================================
 echo.
 pause

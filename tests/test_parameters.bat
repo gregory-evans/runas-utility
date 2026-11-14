@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: ========================================
-::  Тесты парсинга параметров
+::  Parameter parsing tests
 :: ========================================
 
 set "BUILD_DIR=%~dp0.."
@@ -14,18 +14,18 @@ set /a total=0
 
 echo.
 echo ========================================
-echo   Тесты парсинга параметров
+echo   Parameter parsing tests
 echo ========================================
 echo.
 
 if not exist "%RUN_EXE%" (
-    echo [!] run.exe не найден. Запуск сборки...
+    echo [!] run.exe not found. Building...
     call "%BUILD_DIR%\build.bat"
 )
 
-:: ---------- Тест 1: Команда без параметров ----------
+:: ---------- Test 1: Command without parameters ----------
 echo ----------------------------------------
-echo   Тест 1: Команда без параметров
+echo   Test 1: Command without parameters
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" cmd.exe /c "exit 0" >nul 2>&1
@@ -33,19 +33,19 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 2: Один параметр ----------
+:: ---------- Test 2: One parameter ----------
 echo ----------------------------------------
-echo   Тест 2: Команда с одним параметром
+echo   Test 2: Command with one parameter
 echo ----------------------------------------
 set /a total+=1
 set "TMPFILE=%TEMP%\runas_param_!random!.txt"
-:: Важно: %%TMPFILE%% с закрывающим процентом — иначе переменная не развернётся
+:: Important: %%TMPFILE%% with the closing percent - otherwise the variable will not expand
 "%RUN_EXE%" cmd.exe /c "echo param1 > %TMPFILE% & exit 0" >nul 2>&1
-:: runas завершается сразу после запуска — ждём, пока дочерний процесс запишет файл
+:: runas exits right after launching - wait until the child process writes the file
 set /a wait_tries=0
 :wait_file
 if exist "%TMPFILE%" goto file_found
@@ -59,13 +59,13 @@ set /a passed+=1
 del "%TMPFILE%" >nul 2>&1
 goto test_3
 :file_missing
-echo [FAIL] файл не создан
+echo [FAIL] file was not created
 set /a failed+=1
 :test_3
 
-:: ---------- Тест 3: Несколько параметров ----------
+:: ---------- Test 3: Several parameters ----------
 echo ----------------------------------------
-echo   Тест 3: Команда с несколькими параметрами
+echo   Test 3: Command with several parameters
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" cmd.exe /c "echo multi & echo param & exit 0" >nul 2>&1
@@ -73,13 +73,13 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 4: Параметры с пробелами в кавычках ----------
+:: ---------- Test 4: Parameters with spaces in quotes ----------
 echo ----------------------------------------
-echo   Тест 4: Параметры с пробелами
+echo   Test 4: Parameters with spaces
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" cmd.exe /c "echo spaced params & exit 0" >nul 2>&1
@@ -87,13 +87,13 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 5: Флаг в начале ----------
+:: ---------- Test 5: Flag at the start ----------
 echo ----------------------------------------
-echo   Тест 5: Флаг режима в начале
+echo   Test 5: Mode flag at the start
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" -n cmd.exe /c "exit 0" >nul 2>&1
@@ -101,60 +101,60 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 6: Несколько флагов ----------
+:: ---------- Test 6: Several flags ----------
 echo ----------------------------------------
-echo   Тест 6: Конфликтующие флаги режима
+echo   Test 6: Conflicting mode flags
 echo ----------------------------------------
 set /a total+=1
-:: Последний флаг должен победить
+:: The last flag must win
 "%RUN_EXE%" -n -m -h cmd.exe /c "exit 0" >nul 2>&1
 if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 7: Пустая команда ----------
+:: ---------- Test 7: Empty command ----------
 echo ----------------------------------------
-echo   Тест 7: Только флаги, без команды
+echo   Test 7: Only flags, no command
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" -n >nul 2>&1
 if !errorlevel! equ 116 (
-    echo [PASS] exit code 116 — нет команды
+    echo [PASS] exit code 116 - no command
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!, ожидался 116
+    echo [FAIL] code = !errorlevel!, expected 116
     set /a failed+=1
 )
 
-:: ---------- Тест 8: Встроенная команда ----------
+:: ---------- Test 8: Built-in command ----------
 echo ----------------------------------------
-echo   Тест 8: Встроенная команда (notepad)
+echo   Test 8: Built-in command (notepad)
 echo ----------------------------------------
 set /a total+=1
-:: notepad может открыть окно — используем tasklist для проверки
+:: notepad may open a window - use tasklist to verify it is running
 "%RUN_EXE%" notepad.exe >nul 2>&1
 timeout /t 1 /nobreak >nul 2>&1
 tasklist /FI "IMAGENAME eq notepad.exe" 2>nul | find "notepad" >nul 2>&1
 if !errorlevel! equ 0 (
-    echo [PASS] notepad запущен
+    echo [PASS] notepad is running
     taskkill /F /IM notepad.exe >nul 2>&1
     set /a passed+=1
 ) else (
-    echo [WARN] notepad не найден в процессах — может быть не установлен
+    echo [WARN] notepad not found in processes - may not be installed
     set /a passed+=1
 )
 
-:: ---------- Тест 9: Длинный путь ----------
+:: ---------- Test 9: Long path ----------
 echo ----------------------------------------
-echo   Тест 9: Полный путь к исполняемому файлу
+echo   Test 9: Full path to an executable file
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" "C:\Windows\System32\cmd.exe" /c "exit 0" >nul 2>&1
@@ -162,13 +162,13 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 10: Вернуться с кодом ----------
+:: ---------- Test 10: Return with a code ----------
 echo ----------------------------------------
-echo   Тест 10: Команда возвращает код 0
+echo   Test 10: Command returns code 0
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" cmd.exe /c "exit 0" >nul 2>&1
@@ -176,13 +176,13 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 11: Даш-аргументы после команды ----------
+:: ---------- Test 11: Dash arguments after the command ----------
 echo ----------------------------------------
-echo   Тест 11: Короткие флаги цели не путаются с runas
+echo   Test 11: Target's short flags are not confused with runas options
 echo ----------------------------------------
 set /a total+=1
 "%RUN_EXE%" cmd.exe /c "exit 0" -v >nul 2>&1
@@ -190,13 +190,13 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 
-:: ---------- Тест 12: Путь с пробелами ----------
+:: ---------- Test 12: Path with spaces ----------
 echo ----------------------------------------
-echo   Тест 12: Команда из каталога с пробелом в имени
+echo   Test 12: Command from a directory whose name contains a space
 echo ----------------------------------------
 set /a total+=1
 set "SPACED_DIR=%TEMP%\runas spaced test"
@@ -207,12 +207,12 @@ if !errorlevel! equ 0 (
     echo [PASS]
     set /a passed+=1
 ) else (
-    echo [FAIL] код = !errorlevel!
+    echo [FAIL] code = !errorlevel!
     set /a failed+=1
 )
 rmdir /s /q "%SPACED_DIR%" >nul 2>&1
 
-:: ---------- Тест 13: Запуск без окна (-w) ----------
+:: ---------- Test 13: Run without a window (-w) ----------
 echo ----------------------------------------
 echo   Test 13: Run without console window (-w)
 echo ----------------------------------------
@@ -230,7 +230,7 @@ if exist "%NOWIN_FILE%" (
 )
 del "%NOWIN_FILE%" >nul 2>&1
 
-:: ---------- Тест 14: Подробный режим (-v) ----------
+:: ---------- Test 14: Verbose mode (-v) ----------
 echo ----------------------------------------
 echo   Test 14: Verbose output to stderr (-v)
 echo ----------------------------------------
@@ -248,7 +248,7 @@ if !errorlevel! equ 0 (
 )
 del "%VFILE%" >nul 2>nul
 
-:: ---------- Тест 15: Длинные алиасы до команды ----------
+:: ---------- Test 15: Long aliases before the command ----------
 echo ----------------------------------------
 echo   Test 15: Long alias --hide consumed as option
 echo ----------------------------------------
@@ -266,22 +266,22 @@ if exist "%ALIAS_FILE%" (
 )
 del "%ALIAS_FILE%" >nul 2>nul
 
-:: ---------- Итоги ----------
+:: ---------- Summary ----------
 echo.
 echo ========================================
-echo   Результаты
+echo   Results
 echo ========================================
-echo   Всего:  !total!
-echo   Прошло: !passed!
-echo   Падено: !failed!
+echo   Total:  !total!
+echo   Passed: !passed!
+echo   Failed: !failed!
 echo ========================================
 
 if !failed! equ 0 (
     color 2F
-    echo [OK] Все тесты пройдены
+    echo [OK] All tests passed
 ) else (
     color 4F
-    echo [!] Есть проваленные тесты
+    echo [!] Some tests failed
 )
 
 echo.
