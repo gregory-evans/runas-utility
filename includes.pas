@@ -360,27 +360,26 @@ const
     MAXIMUM_WAIT_OBJECTS = $40;
     MAXIMUM_SUSPEND_COUNT = $7f;
     { TEXTS }
-    TXT_HELP_1 = 'RunAs Utility v1.0'+#10#13+
+    TXT_HELP_1 = 'RunAs Utility v1.1 (2026-11-11)'+#10#13+
                 'Copyright (c) 2026 grigorii.evseev@outlook.com'+#10#13+
+                'Licensed under MIT'+#10#13+
                 ' '+#10#13+
                 'Usage:'+#10#13;
-    TXT_HELP_2 = ' [-h | -m | -M | -n* | -w] [-a] COMMAND [PARAM1 "PARAM 2" ...]'+#10#13+
+    TXT_HELP_2 = ' [-h | -m | -M | -n* | -w] [-v] [-a] COMMAND [PARAM1 "PARAM 2" ...]'+#10#13+
                 #10#13+
                 'COMMAND    - Command for run'+#10#13+
                 'PARAMETERS - Parameters for run command'+#10#13+
                 #10#13+
                 'OPTIONS:'+#10#13+
-                '    -h  Run hide.'+#10#13+
-                '    -m  Run minimized.'+#10#13+
-                '    -M  Run maximized.'+#10#13+
-                '    -n  Run normal. Default option.'+#10#13+
-                '    -w  Run without console window (CREATE_NO_WINDOW).'+#10#13+
-                '    -v  Verbose output to stderr.'+#10#13+
-                '    -a  Run as Administrator.'+#10#13+
-                '    -?  Print help.'+#10#13+
-                #10#13+
-                'Long aliases (before the command only): --normal, --minimize, --maximize,'+#10#13+
-                '--hide, --nowindow, --verbose, --admin, --help';
+                '    -h, --hide       Run hide.'+#10#13+
+                '    -m, --minimize   Run minimized.'+#10#13+
+                '    -M, --maximize   Run maximized.'+#10#13+
+                '    -n, --normal     Run normal. Default option.'+#10#13+
+                '    -w, --nowindow   Run without console window (CREATE_NO_WINDOW).'+#10#13+
+                '    -v, --verbose    Verbose output to stderr.'+#10#13+
+                '    -a, --admin      Run as Administrator.'+#10#13+
+                '    -?, --help       Print this help.'+#10#13+#10#13+
+                '* long aliases must be used before the command only.';
     TXT_UAC_DENIED = 'Elevation failed: user rejected the UAC prompt or the elevated launch did not start.';
     TXT_COMMAND_NOT_FOUND = 'Command not found: executable does not exist at the specified path.';
     TXT_ELEVATED_CHILD_FAILED = 'Elevation failed: the elevated process terminated before reading the command.';
