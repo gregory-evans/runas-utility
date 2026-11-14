@@ -1,188 +1,171 @@
 # RunAs Utility
 
-Утилита командной строки для запуска программ с **повышением привилегий до администратора** через UAC Windows. Написана на **Free Pascal**, компилируется в самодостаточный `.exe` без зависимостей.
+A command-line utility that launches programs with **elevated (administrator) privileges** on Windows via UAC. Written in **Free Pascal**, it compiles to a self-contained `.exe` with no dependencies.
 
 ---
 
-## Содержание
+## Contents
 
-- [Возможности](#возможности)
-- [Быстрый старт](#быстрый-старт)
-- [Использование](#использование)
-- [Примеры](#примеры)
-- [Как это работает](#как-это-работает)
-- [Коды возврата](#коды-возврата)
-- [Рекомендации по улучшению](#рекомендации-по-улучшению)
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Usage](#usage)
+- [Examples](#examples)
+- [How it works](#how-it-works)
+- [Exit codes](#exit-codes)
+- [Testing](#testing)
 
 ---
 
-## Возможности
+## Features
 
-| Функция | Описание |
+| Feature | Description |
 |---|---|
-| **Повышение прав** | Запуск любой команды с правами администратора через UAC (`-a`) |
-| **Режимы окна** | Нормальный, свёрнутый, развёрнутый, скрытый (`-n`, `-m`, `-M`, `-h`) |
-| **IPC через MMF** | Передача командной строки между процессами через отображаемые в память файлы |
-| **Синхронизация** | Windows Event для координации родительского и дочернего процессов |
-| **Портативность** | Один `.exe` файл, никаких зависимостей |
+| **Privilege elevation** | Launch any command with administrator rights via UAC (`-a`) |
+| **Window modes** | Normal, minimized, maximized, hidden (`-n`, `-m`, `-M`, `-h`) |
+| **IPC via MMF** | The command line is passed between processes through a memory-mapped file |
+| **Synchronization** | A Windows event coordinates the parent and child processes |
+| **Portability** | A single `.exe` file, no dependencies |
 
 ---
 
-## Быстрый старт
+## Quick start
 
-### Сборка
+### Build
 
 ```bat
 build.bat
 ```
 
-Или вручную:
+Or manually:
 
 ```bat
 fpc -O3 -CX -XX -Xs run.pas
 strip run.exe
 ```
 
-> **Требования:** Free Pascal Compiler (`fpc`), утилита `strip` (опционально, для уменьшения размера бинарника).
+> **Requirements:** the Free Pascal Compiler (`fpc`); `strip` is optional (reduces binary size).
 >
-> **Битность:** `build.bat` вызывает `fpc` из PATH — результат соответствует целевой платформе установленного FPC (i386-Win32 или x64-Win64). Для x64-бинарника нужен 64-битный компилятор в PATH.
+> **Bitness:** `build.bat` invokes `fpc` from PATH, so the result matches the target platform of the installed FPC (i386-Win32 or x64-Win64). For an x64 binary you need a 64-bit compiler in PATH.
 
 ---
 
-## Использование
+## Usage
 
 ```
 run.exe [-h | -m | -M | -n] [-w] [-v] [-a] COMMAND [PARAM1 "PARAM 2" ...]
 ```
 
-### Параметры
+### Options
 
-| Флаг | Режим окна | Описание |
+| Flag | Window mode | Description |
 |---|---|---|
-| `-n` / `--normal` | `SW_NORMAL` | Обычное окно **(по умолчанию)** |
-| `-m` / `--minimize` | `SW_MINIMIZE` | Свёрнутое в трей |
-| `-M` / `--maximize` | `SW_MAXIMIZE` | Развёрнутое на весь экран |
-| `-h` / `--hide` | `SW_HIDE` | Скрытый запуск |
-| `-w` / `--nowindow` | — | Без окна консоли вовсе (`CREATE_NO_WINDOW`; вместе с `-a` элевированная копия тоже получает `SEE_MASK_NO_CONSOLE`) |
-| `-v` / `--verbose` | — | Подробный вывод промежуточных шагов в stderr (отладка) |
-| `-a` / `--admin` | — | Запуск с правами администратора |
-| `-?` / `--help` | — | Вывести справку |
+| `-n` / `--normal` | `SW_NORMAL` | Normal window **(default)** |
+| `-m` / `--minimize` | `SW_MINIMIZE` | Minimized to the tray |
+| `-M` / `--maximize` | `SW_MAXIMIZE` | Maximized across the screen |
+| `-h` / `--hide` | `SW_HIDE` | Hidden launch |
+| `-w` / `--nowindow` | — | No console window at all (`CREATE_NO_WINDOW`; together with `-a` the elevated copy also gets `SEE_MASK_NO_CONSOLE`) |
+| `-v` / `--verbose` | — | Verbose output of intermediate steps to stderr (debugging) |
+| `-a` / `--admin` | — | Launch with administrator rights |
+| `-?` / `--help` | — | Print help |
 
-> Длинные формы (`--…`) распознаются **только до команды**; после команды любой аргумент с дефисом считается параметром цели.
+> Long forms (`--…`) are recognized **only before the command**; after the command any dash-prefixed argument is treated as a parameter of the target program.
 
-### Аргументы
+### Arguments
 
-| Аргумент | Описание |
+| Argument | Description |
 |---|---|
-| `COMMAND` | Путь к исполняемому файлу или команде |
-| `PARAM1 PARAM2 ...` | Параметры, передаваемые команде (строки с пробелами можно взять в кавычки) |
+| `COMMAND` | Path to an executable file or command |
+| `PARAM1 PARAM2 ...` | Parameters passed to the command (strings containing spaces can be quoted) |
 
-> **Правило распознавания флагов:** опции обёртки (`-h`, `-m`, `-M`, `-n`, `-a`, `-?`) признаются только если аргумент состоит ровно из двух символов и начинается с `-`. Всё, что длиннее (`--verbose`, `--elevated`, `-1`), считается параметром целевой программы. Первый не-флаговый аргумент — команда; все последующие — параметры (каждый автоматически экранируется кавычками при запуске и передаче в MMF).
+> **Flag recognition rule:** wrapper options (`-h`, `-m`, `-M`, `-n`, `-w`, `-v`, `-a`, `-?`) are recognized only when an argument is exactly two characters long and starts with `-`. Anything longer (`--verbose`, `--elevated`, `-1`) is treated as a parameter of the target program. The first non-flag argument becomes the command; all subsequent arguments become parameters (each one is automatically quoted at launch and in the MMF).
 >
-> Если флаги переданы, но команды нет (`run.exe -n`), код возврата `116`.
+> If flags are given but no command is (`run.exe -n`), the exit code is `116`.
 
 ---
 
-## Примеры
+## Examples
 
 ```bat
-:: Обычный запуск
+:: Normal launch
 run.exe notepad.exe
 
-:: Запуск с правами администратора
+:: Launch with administrator rights
 run.exe -a cmd.exe
 
-:: Скрытый запуск
+:: Hidden elevated launch
 run.exe -h -a taskkill /F /IM example.exe
 
-:: Свёрнутый запуск с параметрами
+:: Minimized elevated launch with parameters
 run.exe -m -a powershell.exe "Get-Process"
 
-:: Развёрнутое окно
+:: Maximized window
 run.exe -M notepad.exe "C:\file.txt"
 ```
 
 ---
 
-## Как это работает
+## How it works
 
-### Без повышения прав (`-a` отсутствует)
+### Without elevation (no `-a`)
 
-1. Парсинг аргументов командной строки
-2. Непосредственный запуск команды через `CreateProcess`
+1. Command-line arguments are parsed
+2. The command is launched directly via `CreateProcessW`
 
-### С повышением прав (`-a` указан)
+### With elevation (`-a`)
 
-1. **Родительский процесс** проверяет текущие привилегии
-2. Если прав достаточно → запуск команды напрямую
-3. Если прав недостаточно:
-   - Создаётся **именованный MMF** (memory-mapped file) с уникальным именем (PID + случайный суффикс)
-   - Командная строка записывается в MMF
-   - Создаётся **именованный Event** в несигнальном состоянии
-   - Запускается **копия себя** через `ShellExecuteEx` с `runas` и маркером `--elevated`
-   - Родитель ждёт Event (таймаут 10 сек)
-4. **Дочерний процесс** (с правами админа):
-   - Открывает и читает MMF
-   - Устанавливает Event (родитель продолжает работу)
-   - Выполняет команду через `CreateProcess`
-   - Освобождает ресурсы
+1. **The parent process** checks its current privileges
+2. If they are sufficient, the command is launched directly
+3. Otherwise:
+   - A **named MMF** (memory-mapped file) with a unique name (PID + random suffix) is created
+   - The final command line is written into the MMF
+   - A **named event** in an unsignaled state is created
+   - A **copy of itself** is launched via `ShellExecuteExW` with the `runas` verb and the `--elevated` marker; a failed launch or UAC denial exits immediately with code 117
+   - The parent waits on both the event and the child process handle (timeout 10 s): if the elevated copy dies before signaling, it fails fast with code 119
+4. **The child process** (with admin rights):
+   - Opens and reads the MMF
+   - Signals the event (the parent continues)
+   - Executes the command via `CreateProcessW`
+   - Releases resources
 
 ---
 
-## Коды возврата
+## Exit codes
 
-| Код | Константа | Описание |
+| Code | Constant | Description |
 |---|---|---|
-| `101` | `ERROR_NO_PARAMETERS` | Не передано параметров |
-| `102` | `ERROR_REQUEST_HELP` | Запрошена справка |
-| `103` | `ERROR_UNDEFINED_PARAMETERS` | Непонятный флаг |
-| `104` | `ERROR_CREATE_PROCESS` | Ошибка создания процесса |
-| `105` | `ERROR_CANT_OPEN_SECURITY_TOKEN` | Не удалось открыть токен процесса |
-| `106` | `ERROR_CANT_WRITE_MMF` | Ошибка записи в MMF |
-| `107` | `ERROR_CREATE_MMF` | Не удалось создать MMF |
-| `108` | `ERROR_CREATE_EVENT` | Не удалось создать Event |
-| `109` | `ERROR_ON_WAITING_EVENT` | Таймаут ожидания Event |
-| `110` | `ERROR_SHELL_EXECUTE` | Ошибка ShellExecute |
-| `111` | `ERROR_READ_MMF` | Ошибка чтения MMF |
-| `112` | `ERROR_OPEN_MMF` | Не удалось открыть MMF |
-| `113` | `ERROR_MAP_MMF` | Не удалось отображить MMF |
-| `114` | `ERROR_OPEN_EVENT` | Не удалось открыть Event |
-| `115` | `ERROR_SET_EVENT` | Не удалось установить Event |
-| `116` | `ERROR_NO_COMMAND` | Переданы только флаги, команда отсутствует |
-| `117` | `ERROR_UAC_DENIED` | Отказ в диалоге UAC или сбой запуска с повышенными правами |
-| `118` | `ERROR_COMMAND_NOT_FOUND` | Исполняемый файл не существует по указанному пути (проверка пропускается, если API `FileExistsA` недоступно) |
-| `119` | `ERROR_ELEVATED_CHILD_FAILED` | Элевированный процесс завершился до чтения команды из MMF |
+| `101` | `ERROR_NO_PARAMETERS` | No parameters were passed |
+| `102` | `ERROR_REQUEST_HELP` | Help was requested |
+| `103` | `ERROR_UNDEFINED_PARAMETERS` | Unknown flag before the command |
+| `104` | `ERROR_CREATE_PROCESS` | Failed to create the process |
+| `105` | `ERROR_CANT_OPEN_SECURITY_TOKEN` | Failed to open the process token |
+| `106` | `ERROR_CANT_WRITE_MMF` | Failed to write into the MMF |
+| `107` | `ERROR_CREATE_MMF` | Failed to create the MMF |
+| `108` | `ERROR_CREATE_EVENT` | Failed to create the event |
+| `109` | `ERROR_ON_WAITING_EVENT` | Timeout while waiting for the event (child still alive) |
+| `110` | `ERROR_SHELL_EXECUTE` | ShellExecute error |
+| `111` | `ERROR_READ_MMF` | Failed to read the MMF |
+| `112` | `ERROR_OPEN_MMF` | Failed to open the MMF |
+| `113` | `ERROR_MAP_MMF` | Failed to map the MMF |
+| `114` | `ERROR_OPEN_EVENT` | Failed to open the event |
+| `115` | `ERROR_SET_EVENT` | Failed to signal the event |
+| `116` | `ERROR_NO_COMMAND` | Only flags were passed, no command |
+| `117` | `ERROR_UAC_DENIED` | UAC prompt was denied or the elevated launch failed to start |
+| `118` | `ERROR_COMMAND_NOT_FOUND` | The executable does not exist at the given path (checked via `GetFileAttributesW`; bare names without separators are resolved through PATH by CreateProcess itself) |
+| `119` | `ERROR_ELEVATED_CHILD_FAILED` | The elevated process terminated before reading the command from the MMF |
 
 ---
 
-## Рекомендации по улучшению
+## Testing
 
-### 🔴 Критические
+The `tests/` directory contains automated batch suites:
 
-1. **Обработка отказа UAC** — ✅ Исправлено: проверяется возвращаемое значение `ShellExecuteExW`, а также `SEE_MASK_NOCLOSEPROCESS` + проверка `hProcess`. Если процесс не запущен (пользователь нажал «Нет», файл не найден), выходим сразу с кодом 117, не дожидаясь события. См. Тест 5 в tests/test_elevation.bat.
+- `run_tests.bat` — main suite (launch modes, quoting, error codes)
+- `test_parameters.bat` — option parsing, `-w`, verbose mode, long aliases
+- `test_build.bat` — verifies the build script works
+- `test_elevation.bat` — elevation scenarios (the UAC-dependent tests are skipped when no operator is present)
 
-2. **Гонка ресурсов** — ✅ Исправлено: при неудаче `ShellExecuteEx` выходим сразу с кодом 117; родитель ждёт не только событие, но и смерть элевированной копии (`WaitForMultipleObjects` по {event, hProcess}) — если дочерний процесс умер до сигнала, выходим сразу с кодом 119 вместо 10-секундного таймаута (код 109 остаётся для случая «дочерний жив, но событие не установил»); очистка хендлов через `try..finally`.
+Run them from a command prompt:
 
-3. **Безопасность MMF** — ✅ Исправлено: к имени добавлен случайный суффикс (`UniqueSuffix()`, 8 hex-цифр), так что предсказать имя MMF/Event по одному лишь PID больше невозможно.
-
-### 🟡 Рекомендуемые
-
-4. **Кодировка** — ✅ Исправлено: при `{$H+}` строки хранятся в системной кодовой странице (CP_ACP), поэтому для перехода к WideChar-функциям используется явное преобразование `AnsiToWide()` на базе `MultiByteToWideChar(CP_ACP, ...)`. Все вызовы с именами/командными строками переведены на wide (`*W`): `ShellExecuteExW`, `CreateProcessW`, `CreateFileMappingW`/`OpenFileMappingW`, `CreateEventW`/`OpenEventW`; зависимость от shlwapi убрана (собственная реализация извлечения имени файла).
-
-5. **Освобождение ресурсов при ошибке** — ✅ Исправлено: вложенные try..finally блоки в `StartElevationProcess` закрывают хендлы Event и MMF даже при сбое на промежуточном шаге.
-
-6. **Валидация команды** — ✅ Исправлено: `ProgramExists()` проверяет существование программы перед запуском (код 118 + понятное сообщение) через `GetFileAttributesW` (каталог тоже отклоняется); голое имя без разделителей не проверяется, его разрешит через PATH сам CreateProcess.
-
-7. **Поддержка `CREATE_NO_WINDOW`** — ✅ Исправлено: новый флаг `-w` запускает цель с `CREATE_NO_WINDOW` (консоль у дочернего процесса не создаётся вовсе); вместе с `-a` элевированная копия обёртки получает `SEE_MASK_NO_CONSOLE`. Флаг передаётся в элевированный процесс 5-м аргументом. См. Тест 13 в tests/test_parameters.bat.
-
-### 🟢 Опциональные
-
-8. **Кэш токена** — ✅ Исправлено: результат `IsRunningAsAdmin()` кэшируется (токен процесса не меняется за время работы), повторные вызовы не открывают токен заново.
-
-9. **Поддержка псевдонимов флагов** — ✅ Исправлено: длинные алиасы всех опций (`--normal`, `--minimize`, `--maximize`, `--hide`, `--nowindow`, `--verbose`, `--admin`, `--help`) распознаются только до команды; после команды аргументы с дефисом остаются параметрами цели (покрыто Тестами 11/15).
-
-10. **Логирование** — ✅ Исправлено: флаг `-v` (алиас `--verbose`) выводит промежуточные шаги потока в stderr с префиксом `[run]` (парсинг, создание MMF/Event, запуск элевированной копии, ожидание события; см. Тест 14).
-
-11. **Тестовый набор** — ✅ Исправлено: каталог `tests/` содержит автоматизированные сценарии (`run_tests.bat`, `test_build.bat`, `test_parameters.bat`, `test_elevation.bat`).
-
-12. **Continuous Integration** — ✅ Исправлено: `.github/workflows/build.yml` собирает проект на `windows-latest` с FPC из Chocolatey (последняя стабильная версия, а не только локальная 3.2.2) при каждом push/PR и загружает `run.exe` артефактом.
+```bat
+tests\run_tests.bat
+```
