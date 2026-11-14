@@ -55,10 +55,16 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          gh release view "$GITHUB_REF_NAME" 2>$null | Out-Null
+          # GITHUB_REF_NAME can be empty on some tag-push events; fall back to GITHUB_REF.
+          $tag = $env:GITHUB_REF_NAME
+          if (-not $tag) { $tag = ($env:GITHUB_REF -replace '^refs/tags/', '') }
+          Write-Host "ref=$env:GITHUB_REF ref_name='$env:GITHUB_REF_NAME' tag='$tag'"
+          if (-not $tag) { throw "Cannot determine the tag name for this run" }
+          gh release view "$tag" 2>$null | Out-Null
           if ($LASTEXITCODE -ne 0) {
-            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME"
+            Write-Host "No release for $tag; creating it"
+            gh release create "$tag" --title "$tag"
           }
-          gh release upload "$GITHUB_REF_NAME" run.exe --clobber
+          gh release upload "$tag" run.exe --clobber
         env:
           GH_TOKEN: ${{ github.token }}
