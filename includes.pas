@@ -1,3 +1,14 @@
+{
+  includes unit: WinAPI declarations, error codes, text constants and helpers used by run.pas.
+
+  Conventions:
+    * Mode: Objfpc with AnsiStrings enabled - all strings live in the system code page (CP_ACP).
+      All wide APIs are fed via the explicit AnsiToWide() conversion - NOT UTF8Decode().
+    * All WinAPI externals carry an explicit stdcall so that 32-bit builds clean up
+      the stack correctly (there is no difference on 64-bit).
+    * No unit sysutils: Random/Randomize (Mersenne Twister) and IntToStr/IntToHex are
+      embedded below to keep the binary small.
+}
 {$mode Objfpc}{$H+}
 {$PACKRECORDS C}  
 unit includes;
@@ -49,7 +60,7 @@ type
     _PROCESS_INFORMATION = PROCESS_INFORMATION;
     TPROCESSINFORMATION = PROCESS_INFORMATION;
     PPROCESSINFORMATION = ^PROCESS_INFORMATION;
-    { Wide-вариант STARTUPINFO: все строковые поля — wide (используем только CreateProcessW) }
+    { Wide variant of STARTUPINFO: all string fields are wide (only CreateProcessW is used) }
     STARTUPINFO = record
         cb : DWORD;
         lpReserved : LPWSTR;
@@ -311,7 +322,7 @@ const
     EVENT_ALL_ACCESS = $1f0003;
     EVENT_MODIFY_STATE = 2;
     { MultiByteToWideChar }
-    CP_ACP = 0;   { системная ANSI-кодовая страница (на русском Windows — 1251) }
+    CP_ACP = 0;   { system ANSI code page (e.g. 1251 on Russian Windows) }
     KEY_ALL_ACCESS = $f003f;
     KEY_CREATE_LINK = 32;
     KEY_CREATE_SUB_KEY = 4;
@@ -375,7 +386,7 @@ const
     TXT_ELEVATED_CHILD_FAILED = 'Elevation failed: the elevated process terminated before reading the command.';
 
 
-{ Wide-версии WinAPI: строковые аргументы — LPWSTR (имена MMF/Event, командная строка) }
+{ Wide versions of WinAPI: string arguments are LPWSTR (MMF/Event names, command line) }
 function CreateProcessW(lpApplicationName: LPCWSTR; lpCommandLine: LPWSTR; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation): BOOL; stdcall; external 'kernel32' name 'CreateProcessW';
 function CreateFileMappingW(hFile: HANDLE; lpFileMappingAttributes: LPSECURITY_ATTRIBUTES; flProtect: DWORD; dwMaximumSizeHigh: DWORD; dwMaximumSizeLow: DWORD; lpName: LPCWSTR): HANDLE; stdcall; external 'kernel32' name 'CreateFileMappingW';
 function OpenFileMappingW(dwDesiredAccess: DWORD; bInheritHandle: WINBOOL; lpName: LPCWSTR): HANDLE; stdcall; external 'kernel32' name 'OpenFileMappingW';
@@ -389,9 +400,9 @@ function GetCurrentProcessId:DWORD; stdcall; external 'kernel32' name 'GetCurren
 function GetTokenInformation(TokenHandle: THandle; TokenInformationClass: TTokenInformationClass; TokenInformation: Pointer; TokenInformationLength: DWORD; var ReturnLength: DWORD): BOOL; stdcall; external 'advapi32' name 'GetTokenInformation';
 function CloseHandle(hObject:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'CloseHandle'; 
 function WaitForSingleObject(hHandle:HANDLE; dwMilliseconds:DWORD):DWORD; stdcall; external 'kernel32' name 'WaitForSingleObject';
-{ Массив хендлов для WaitForMultipleObjects. ВАЖНО: на FPC 3.2.2 (i386) external с
-  open-array параметром передаёт аргументы некорректно — используем указатель на
-  фиксированный массив, как в юните windows } 
+{ Handle array for WaitForMultipleObjects. IMPORTANT: on FPC 3.2.2 (i386) an external with an
+  open-array parameter passes arguments incorrectly - use a pointer to a fixed-size array
+  instead, as in the windows unit } 
 type TWOHandleArray = array[0..MAXIMUM_WAIT_OBJECTS-1] of THandle;
      PWOHandleArray = ^TWOHandleArray;
 function WaitForMultipleObjects(nCount: DWORD; const handles: PWOHandleArray; waitAll: WINBOOL; timeoutMs: DWORD): DWORD; stdcall; external 'kernel32' name 'WaitForMultipleObjects';
@@ -403,8 +414,8 @@ function UnmapViewOfFile(lpBaseAddress:LPVOID):WINBOOL; stdcall; external 'kerne
 
 function SetEvent(hEvent:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'SetEvent'; 
 
-{ Все WinAPI-функции — stdcall. Явно указываем, чтобы 32-битная сборка
-  корректно очищала стек (в 64-битной разницы нет) }
+{ All WinAPI functions are stdcall. Stated explicitly so that 32-bit builds
+  clean up the stack correctly (there is no difference on 64-bit) }
 function GetTickCount: DWORD; stdcall; external 'kernel32' name 'GetTickCount';
 function MultiByteToWideChar(CodePage: UINT; dwFlags: DWORD; lpMultiByteStr: LPCSTR; cchMultiByte: Integer; lpWideCharStr: LPWSTR; cchWideChar: Integer): Integer; stdcall; external 'kernel32' name 'MultiByteToWideChar';
 procedure PrintHelpAndExit(exitCode: WORD);
@@ -417,32 +428,32 @@ function WriteMMF(mmfHandle: THandle; mmfSize: integer; value: string): boolean;
 function ReadMMF(mmfHandle: THandle; const mmfSize: integer): string;
 function ShellExec(const command, parameters: string; noWindow: boolean; out procHandle: THandle): boolean;
 function StringMode(mode: WORD): string;
-{ Только то, что реально используется в run.pas — остальное из sysutils не тянем }
+{ Only what is actually used by run.pas - the rest of sysutils is not pulled in }
 function IntToStr(Value: QWord): string;
 function IntToStr(Value: DWORD): string;
 function IntToHex(Value: Longint; Digits: integer): string;
 function GetFileName(fullPath: string): string;
 function GetProgramPart(commandLine: string): string;
 function ProgramExists(commandLine: string): boolean;
-{ Генератор случайных чисел (Mersenne Twister, алгоритм из FPC RTL sysutils).
-  Собственная копия вместо unit sysutils — чтобы не тащить весь RTL в бинарник }
+{ Random number generator (Mersenne Twister, algorithm from FPC RTL sysutils).
+  Own copy instead of unit sysutils - to keep the whole RTL out of the binary }
 function Random(l: longint): longint;
 procedure Randomize;
 
 var
-    { Зерно генератора случайных чисел }
+    { RNG seed }
     RandSeed: Cardinal;
-    { Кэш результата IsRunningAsAdmin(): токен процесса не меняется за время работы }
+    { Cached result of IsRunningAsAdmin(): the process token does not change during execution }
     adminQueried: boolean;
     adminIsAdmin: boolean;
 
 implementation
 
-{ Генератор случайных чисел. Mersenne Twister — алгоритм из FPC RTL sysutils,
-  перенесён сюда, чтобы не подключать unit sysutils (экономия размера бинарника) }
+{ Random number generator. Mersenne Twister - algorithm from FPC RTL sysutils,
+  moved here to keep unit sysutils out of the binary (saves size) }
 
 const
-    { Константы генератора }
+    { Generator constants }
     MTWIST_N = 624;
     MTWIST_M = 397;
     MTWIST_UPPER_MASK = cardinal($80000000);
@@ -450,7 +461,7 @@ const
     MTWIST_MATRIX_A = cardinal($9908B0DF);
 
 var
-    { Служебное состояние генератора }
+    { Internal state of the generator }
     OldRandSeed: Cardinal = 0;
     mt_state: array[0..MTWIST_N - 1] of Cardinal;
     mt_index: Cardinal = MTWIST_N + 1;
@@ -460,7 +471,7 @@ begin
     RandSeed := GetTickCount;
 end; { Randomize() }
 
-{$R-} { Отключаем range/overflow checking только для кода генератора }
+{$R-} { Disable range/overflow checking for the generator code only }
 {$Q-}
 
 function MTWistMixBits(u, v: Cardinal): Cardinal; inline;
@@ -470,7 +481,7 @@ end; { MTWistMixBits() }
 
 function MTWistTwist(u, v: Cardinal): Cardinal; inline;
 begin
-    { Конструкция в конце эквивалентна: if odd(v) then MTWIST_MATRIX_A else 0 }
+    { The construct below is equivalent to: if odd(v) then MTWIST_MATRIX_A else 0 }
     result := (MTWistMixBits(u, v) shr 1) xor (cardinal(-(v and 1)) and MTWIST_MATRIX_A);
 end; { MTWistTwist() }
 
@@ -480,15 +491,15 @@ begin
     mt_state[0] := seed;
     for i := 1 to MTWIST_N - 1 do
         mt_state[i] := cardinal(1812433253) * (mt_state[i-1] xor (mt_state[i-1] shr 30)) + i;
-    { Состояние нужно обновить }
+    { The state index must be updated }
     mt_index := MTWIST_N;
 end; { MTWistInit() }
 
 procedure MTWistUpdateState();
 var count: longint;
 begin
-    { Первый цикл инициализует только N-M элементов (последний обрабатывается отдельно);
-      исходный код FPC так и делает — значение этого элемента не влияет на последующие числа }
+    { The first loop initializes only N-M elements (the last one is handled separately);
+      the original FPC code does the same - this element's value does not affect subsequent numbers }
     for count := 0 to MTWIST_N - MTWIST_M - 1 do
         mt_state[count] := mt_state[count + MTWIST_M] xor MTWistTwist(mt_state[count], mt_state[count+1]);
     for count := MTWIST_N - MTWIST_M to MTWIST_N - 2 do
@@ -503,8 +514,8 @@ begin
     l_index := mt_index;
     inc(mt_index);
     if (RandSeed <> OldRandSeed) or (l_index >= MTWIST_N + 1) then begin
-        { Зерно изменилось — инициализируем заново. RandSeed инвертируется, чтобы
-          следующий вызов Randomize() с тем же зерном снова переинициализировал состояние }
+        { The seed changed - reinitialize. RandSeed is inverted so that a subsequent
+          Randomize() with the same seed will reinitialize the state again }
         MTWistInit(RandSeed);
         RandSeed := not (RandSeed);
         OldRandSeed := RandSeed;
@@ -524,15 +535,15 @@ end; { MTWistU32Rand() }
 
 function Random(l: longint): longint;
 begin
-    { Без этого при отрицательном l можно получить значение, равное l }
+    { Without this, a negative l could yield a value equal to l itself }
     if l < 0 then inc(l);
     result := longint((Int64(MTWistU32Rand()) * l) shr 32);
 end; { Random() }
 
-{$R+} { Возвращаем range/overflow checking }
+{$R+} { Restore range/overflow checking }
 {$Q+}
 
-{ Возвращает текстовое представление режима, как в параметрах }
+{ Returns the textual representation of the mode, as used in the parameters }
 function StringMode(mode: WORD): string;
 begin
     case mode of
@@ -544,9 +555,8 @@ begin
     end; {case}
 end; { StringMode() }
 
-{ Преобразует ANSI-строку (системная кодовая страница, как её отдаёт ParamStr)
-  в wide-строку. НЕ UTF8Decode: с AnsiStrings строки закодированы в CP_ACP,
-  а не UTF-8 }
+{ Converts an ANSI string (system code page, as returned by ParamStr) to a wide string.
+  NOT UTF8Decode: with AnsiStrings the strings are encoded in CP_ACP, not UTF-8 }
 function AnsiToWide(const value: string): WideString;
 var
     len: integer;
@@ -555,7 +565,7 @@ begin
         result := '';
         exit();
     end;
-    { Запрашиваем размер буфера с учётом завершающего #0 }
+    { Ask for the buffer size including the terminating #0 }
     len := MultiByteToWideChar(CP_ACP, 0, PAnsiChar(value), -1, nil, 0);
     if len <= 1 then begin
         result := '';
@@ -565,9 +575,9 @@ begin
     MultiByteToWideChar(CP_ACP, 0, PAnsiChar(value), -1, PWideChar(result), len);
 end; { AnsiToWide() }
 
-{ Запуск процесса с повышением прав. Скрыто. ShellExecuteExW.
-  Успех — в procHandle возвращается хендл запущенного процесса (владеет им вызывающий);
-  неудача — procHandle = 0 } 
+{ Launches a process with elevated rights. Hidden. ShellExecuteExW.
+  On success procHandle receives the handle of the launched process (owned by the caller);
+  on failure procHandle = 0 } 
 function ShellExec(const command, parameters: string; noWindow: boolean; out procHandle: THandle): boolean;
 var
     sei: TShellExecuteInfoW;
@@ -578,9 +588,8 @@ begin
     FillChar(sei, SizeOf(sei), 0);
     sei.cbSize := SizeOf(sei);
     sei.Wnd := 0;
-    { NOCLOSEPROCESS — чтобы проверить hProcess и отличить успешный запуск
-      от отказа пользователя в диалоге UAC; NO_CONSOLE — не создавать консоль
-      у элевированной копии при -w }
+    { NOCLOSEPROCESS - to check hProcess and distinguish a successful launch from the user
+      denying the UAC prompt; NO_CONSOLE - do not create a console for the elevated copy on -w }
     if noWindow then
         sei.fMask := SEE_MASK_FLAG_DDEWAIT or SEE_MASK_FLAG_NO_UI or SEE_MASK_NOCLOSEPROCESS or SEE_MASK_NO_CONSOLE
     else
@@ -594,28 +603,28 @@ begin
     end;
     sei.nShow := SW_HIDE;
     result := ShellExecuteExW(@sei);
-    { Если процесс не запущен (отказ в UAC, файл не найден), hProcess = 0 — считаем неудачей }
+    { If the process was not launched (UAC denial, file not found), hProcess = 0 - treat as failure }
     if (not result) or (sei.hProcess = 0) then begin
         result := false;
     end else begin
-        { Хендл процесса передаём вызывающему: он будет ждать событие ИЛИ смерть дочернего }
+        { Pass the process handle to the caller: it will wait for the event OR death of the child }
         procHandle := sei.hProcess;
     end;
 end; { ShellExec() }
 
-{ Точное совпадение для DWORD (GetCurrentProcessId и пр.): без неявного приведения к Longint }
+{ Exact match for DWORD (GetCurrentProcessId and friends): no implicit conversion to Longint }
 function IntToStr(Value: DWORD): string;
 begin
     result := IntToStr(QWord(Value));
 end; { IntToStr(Value: DWORD) }
 
-{ QWord — базовая версия, остальные перегрузки не используются в проекте }
+{ QWord is the base version; other overloads are not used in this project }
 function IntToStr(Value: QWord): string;
 begin
     System.Str(Value, result);
 end; { IntToStr(Value: QWord) }
 
-{ Цифры для IntToHex }
+{ Digits for IntToHex }
 const
     HexDigits: array[0..15] of Char = '0123456789ABCDEF';
 
@@ -634,8 +643,8 @@ begin
     end; {while}
 end; { IntToHex() }
 
-{ Запустить команду. creationFlags — флаги CreateProcess: обычно CREATE_NEW_CONSOLE,
-  при -w — CREATE_NO_WINDOW (консоль у дочернего процесса не создаётся вовсе) }
+{ Launches a command. creationFlags - CreateProcess flags: normally CREATE_NEW_CONSOLE,
+  with -w - CREATE_NO_WINDOW (no console is created for the child at all) }
 function RunCommand(creationFlags: DWORD; mode: WORD; commandLine: string): boolean;
 var
     si: TStartupInfo;
@@ -645,19 +654,19 @@ begin
     si.cb := SizeOf(si);
     si.dwFlags := STARTF_USESHOWWINDOW;
     si.wShowWindow := mode;
-    { Командная строка — CP_ACP, для CreateProcessW переводим в wide явно }
+    { The command line is CP_ACP; convert to wide explicitly for CreateProcessW }
     result := CreateProcessW(nil, PWideChar(AnsiToWide(commandLine)), nil, nil, False,
                              creationFlags, nil, nil, si, pi);
 end; { RunCommand() }
 
-{ Вывести помошь и выйти с кодом возврата }
+{ Print help and exit with the given code }
 procedure PrintHelpAndExit(exitCode: WORD);
 begin
     WriteLn(TXT_HELP_1 + GetFileName(ParamStr(0)) + TXT_HELP_2);
     Halt(exitCode);
 end; { PrintHelpAndExit() }
 
-{ Вернуть имя файла из полного пути (часть после последнего разделителя) }
+{ Returns the file name from a full path (the part after the last separator) }
 function GetFileName(fullPath: string): string;
 var i: Integer;
 begin
@@ -669,32 +678,32 @@ begin
     result := fullPath;
 end; { GetFileName() }
 
-{ Вывести ошибку и выйти }
+{ Print an error and exit }
 procedure Error(exitCode: WORD);
 begin
     WriteLn('Error: ', exitCode);
     Halt(exitCode);
 end; { Error() }
 
-{ Выделяет часть командной строки с программой, учитывая кавычки }
+{ Extracts the program part of a command line, taking quotes into account }
 function GetProgramPart(commandLine: string): string;
 var i: Integer;
 begin
     if (Length(commandLine) > 0) and (commandLine[1] = '"') then begin
-        { Программа в кавычках — ищем закрывающую кавычку }
+        { Program in quotes - look for the closing quote }
         i := Pos('"', Copy(commandLine, 2, MaxInt));
         if (i = 0) then result := commandLine
             else result := Copy(commandLine, 2, i - 1);
     end else begin
-        { Без кавычек — до первого пробела }
+        { No quotes - up to the first space }
         i := Pos(' ', commandLine);
         if (i = 0) then result := commandLine
             else result := Copy(commandLine, 1, i - 1);
     end;
 end; { GetProgramPart() }
 
-{ Проверяет существование программы через GetFileAttributesW.
-  Голое имя без разделителей не проверяем — его разрешит через PATH сам CreateProcess } 
+{ Checks program existence via GetFileAttributesW.
+  A bare name without separators is not checked - CreateProcess resolves it through PATH itself } 
 function ProgramExists(commandLine: string): boolean;
 var
     part: string;
@@ -702,16 +711,16 @@ var
 begin
     part := GetProgramPart(commandLine);
     if (Pos('\', part) = 0) and (Pos('/', part) = 0) then begin
-        { Голое имя — разрешит через PATH сам CreateProcess }
+        { Bare name - CreateProcess resolves it through PATH itself }
         result := True;
     end else begin
         attr := GetFileAttributesW(PWideChar(AnsiToWide(part)));
         if attr = INVALID_FILE_ATTRIBUTES then result := False
-            else result := (attr and FILE_ATTRIBUTE_DIRECTORY) = 0; { каталог не запускать }
+            else result := (attr and FILE_ATTRIBUTE_DIRECTORY) = 0; { do not launch a directory }
     end;
 end; { ProgramExists() }
 
-{ Установить кавычки, если строка содержит пробелы }
+{ Wrap in quotes if the string contains spaces }
 function Quoted(value: string): string;
 var
     q: string = '';
@@ -720,34 +729,33 @@ begin
     result := q + value + q;
 end; { Quoted() }
 
-{ Проверяет, есть ли у процесса права администратора }
+{ Checks whether the process has administrator rights }
 function IsRunningAsAdmin(): Boolean;
 var
     hToken: THandle;
     elevation: TOKEN_ELEVATION;
     dwSize: DWORD;
 begin
-    { Результат кэшируется: повторные вызовы не открывают токен заново }
+    { The result is cached: repeated calls do not open the token again }
     if adminQueried then begin
         Result := adminIsAdmin;
         exit();
     end;
     adminQueried := True;
     Result := False;
-    { Открываем токен текущего процесса с правом на запрос информации }
+    { Open the current process token with query access }
     if not OpenProcessToken(GetCurrentProcess, TOKEN_QUERY, hToken) then
         Error(ERROR_CANT_OPEN_SECURITY_TOKEN);
     dwSize := SizeOf(TOKEN_ELEVATION);
-    { Запрашиваем информацию об уровне повышения привилегий.
-      TokenElevation (значение 20) возвращает структуру TOKEN_ELEVATION,
-      где поле TokenIsElevated = True, если токен повышенный }
+    { Query the elevation level. TokenElevation (value 20) returns a TOKEN_ELEVATION structure
+      whose TokenIsElevated field is True for an elevated token }
     if GetTokenInformation(hToken, TokenElevation, @elevation, dwSize, dwSize) then
         Result := boolean(elevation.TokenIsElevated);
     CloseHandle(hToken);
     adminIsAdmin := Result;
 end; { IsRunningAsAdmin() }
 
-{ Запись в файл в памяти }
+{ Write to a memory-mapped file }
 function WriteMMF(mmfHandle: THandle; mmfSize: integer; value: string): boolean;
 var
     pData: pointer;
@@ -760,21 +768,21 @@ begin
         exit();
     end;
     try
-        { Копируем в общую память как нуль-терминированную строку (Safe) }
+        { Copy into the shared memory as a null-terminated string (Safe) }
         Len := Length(value);
         if Len >= mmfSize then
-        Len := mmfSize - 1; // оставляем место под #0
+        Len := mmfSize - 1; // leave room for #0
 
-        { Копируем содержимое строки (без заголовка! просто символы) }
+        { Copy the string content (no header! just characters) }
         Move(value[1], pData^, Len);
-        { Добавляем завершающий ноль }
+        { Append the terminating zero }
         PChar(pData)[Len] := #0;
     finally
         UnmapViewOfFile(pData);
     end;
 end; { WriteMMF() }
 
-{ Чтение из файла в памяти }
+{ Read from a memory-mapped file }
 function ReadMMF(mmfHandle: THandle; const mmfSize: integer): string;
 var
     pData: pointer;
