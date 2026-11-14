@@ -93,7 +93,7 @@ begin
     { Do we already have admin rights? }
     if IsRunningAsAdmin() then begin
         { If admin rights are already present - run the target directly }
-        VLog('already elevated — running target directly');
+        VLog('already elevated - running target directly');
         RunTarget();
     end else begin { No admin rights }
         { Create a unique name for the mmf }
@@ -130,7 +130,7 @@ begin
                 waitResult := WaitForMultipleObjects(2, @waitHandles, False, TIMEOUT);
                 if waitResult = WAIT_OBJECT_0 then begin
                     { Event set - the child read the mmf }
-                    VLog('event signaled — child read the mmf');
+                    VLog('event signaled - child read the mmf');
                 end else if (waitResult = WAIT_OBJECT_0 + 1) or (WaitForSingleObject(elevatedProc, 0) = WAIT_OBJECT_0) then begin
                     { The elevated copy terminated before signaling: report immediately instead of waiting for the timeout }
                     childExitCode := $FFFFFFFF;
@@ -141,7 +141,7 @@ begin
                     Error(ERROR_ELEVATED_CHILD_FAILED);
                 end else begin
                     { Timeout: the child is alive but did not set the event }
-                    VLog('timeout waiting for event — child still alive');
+                    VLog('timeout waiting for event - child still alive');
                     Error(ERROR_ON_WAITING_EVENT);
                 end;
                 CloseHandle(elevatedProc);
@@ -220,7 +220,7 @@ end; { normalStart() }
 { Launched with a request to elevate rights }
 procedure ElevatedStart();
 begin
-    VLog('elevated mode — reading parameters');
+    VLog('elevated mode - reading parameters');
     { Parse command-line arguments }
     app.mmfName := ParamStr(2);
     app.eventName := ParamStr(3);
