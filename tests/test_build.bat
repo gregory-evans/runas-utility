@@ -69,7 +69,7 @@ if !errorlevel! equ 0 (
     set "size_before=!size!"
     strip run.exe
     for %%F in ("%BUILD_DIR%\run.exe") do set "size_after=%%~zF"
-    echo [OK] strip applied (!size_before! -^> !size_after! bytes)
+    echo [OK] strip applied: !size_before! -^> !size_after! bytes
 ) else (
     echo [WARN] strip not found - the binary will not be reduced
 )

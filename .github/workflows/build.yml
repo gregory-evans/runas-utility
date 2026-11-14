@@ -9,10 +9,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The runner image has no Free Pascal; install the latest stable via Chocolatey.
-      # This also guards against regressions on newer FPC versions than local 3.2.2.
+      # The runner image has no Free Pascal. The Chocolatey "fpc" package was delisted
+      # from the community repository, so unpack the official x86_64-win64 distribution.
       - name: Install Free Pascal Compiler
-        run: choco install fpc -y
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location $env:GITHUB_WORKSPACE
+          Invoke-WebRequest -Uri "https://downloads.freepascal.org/fpc/dist/3.2.2/x86_64-win64/fpc-3.2.2.x86_64-win64.tar" -OutFile fpc.tar
+          $tarExe = Join-Path $env:SystemRoot "System32\tar.exe"
+          & $tarExe -xf fpc.tar; if ($LASTEXITCODE -ne 0) { throw "outer tar extract failed: $LASTEXITCODE" }
+          $root = Get-ChildItem -Directory "fpc-*" | Select-Object -First 1
+          # The nested archives extract into the current directory (the workspace),
+          # not into $root, because tar resolves member paths relative to CWD.
+          & $tarExe -xf (Join-Path $root.FullName "binary.x86_64-win64.tar"); if ($LASTEXITCODE -ne 0) { throw "binary tar extract failed: $LASTEXITCODE" }
+          Get-ChildItem "x86_64-win64-base*.tar.gz", "units-*.tar.gz" | ForEach-Object {
+            & $tarExe -xzf $_.FullName; if ($LASTEXITCODE -ne 0) { throw "extract of $($_.Name) failed: $LASTEXITCODE" }
+          }
+          $bin = Join-Path (Get-Location) "bin\x86_64-win64"
+          if (-not (Test-Path "${bin}\fpc.exe")) { throw "FPC compiler not found after extraction" }
+          Add-Content $env:GITHUB_PATH $bin
+
+      - name: Verify FPC
+        run: fpc -i
 
       - name: Build
         shell: cmd

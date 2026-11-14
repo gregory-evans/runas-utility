@@ -179,7 +179,7 @@ begin
             else
                 { Unknown flag: before the command - error, after it - a regular parameter }
                 if (app.command = '') then PrintHelpAndExit(ERROR_UNDEFINED_PARAMETERS)
-                else app.parameters += Quoted(arg) + ' ';
+                else app.parameters := app.parameters + Quoted(arg) + ' ';
             end {case}
         else if (app.command = '') then
             case arg of
@@ -194,10 +194,11 @@ begin
                 '--help':     PrintHelpAndExit(ERROR_REQUEST_HELP);
             else
                 if (app.command = '') then app.command := arg
-                else app.parameters += Quoted(arg) + ' ';
+                else app.parameters := app.parameters + Quoted(arg) + ' ';
             end {case}
         else
-            app.parameters += Quoted(arg) + ' ';
+            app.parameters := app.parameters + Quoted(arg) + ' ';
+
     end; {for}
     { The command must be specified }
     if (app.command = '') then Error(ERROR_NO_COMMAND);
