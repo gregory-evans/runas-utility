@@ -140,6 +140,37 @@ del "%RJ_TMP%" >nul 2>&1
 del "%RJ_OUT%" >nul 2>&1
 del "%RJ_HELP%" >nul 2>&1
 
+:: ---------- Test 6: New wait logic — elevated launch success regression ----------
+echo.
+echo ----------------------------------------
+echo   Test 6: Elevated launch completes, child ran target
+echo ----------------------------------------
+echo [!] Будет показано окно UAC — подтвердите запуск
+set /p "confirm=Продолжить? (y/n): "
+if /i not "!confirm!"=="y" (
+    echo [SKIP] Тест пропущен по запросу
+    goto :end_tests
+)
+set "T6_FILE=%~dp0t6_out.txt"
+del "%T6_FILE%" >nul 2>nul
+"%RUN_EXE%" -a cmd.exe /c "echo T6-OK > %T6_FILE% 2>&1" >nul 2>&1
+if !errorlevel! neq 0 (
+    echo [FAIL] Родитель завершился с кодом !errorlevel! (ожидался 0)
+) else (
+    ping -n 5 127.0.0.1 >nul
+    if exist "%T6_FILE%" (
+        findstr /C:"T6-OK" "%T6_FILE%" >nul
+        if !errorlevel! equ 0 (
+            echo [OK] Элевированный запуск завершён, дочерний выполнил цель
+        ) else (
+            echo [FAIL] Файл создан без ожидаемого содержимого
+        )
+    ) else (
+        echo [FAIL] Дочерний процесс не создал файл цели
+    )
+)
+del "%T6_FILE%" >nul 2>nul
+
 :end_tests
 echo.
 echo ========================================

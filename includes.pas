@@ -246,6 +246,7 @@ const
     ERROR_NO_COMMAND                = 116;
     ERROR_UAC_DENIED                = 117;
     ERROR_COMMAND_NOT_FOUND         = 118;
+    ERROR_ELEVATED_CHILD_FAILED     = 119;
     { OpenProcessToken  }
     TOKEN_ADJUST_DEFAULT = 128;
     TOKEN_ADJUST_GROUPS = 64;
@@ -375,6 +376,7 @@ const
                 '--hide, --nowindow, --verbose, --admin, --help';
     TXT_UAC_DENIED = 'Elevation failed: user rejected the UAC prompt or the elevated launch did not start.';
     TXT_COMMAND_NOT_FOUND = 'Command not found: executable does not exist at the specified path.';
+    TXT_ELEVATED_CHILD_FAILED = 'Elevation failed: the elevated process terminated before reading the command.';
 
 
 function CreateProcess(lpApplicationName: PChar; lpCommandLine: PChar; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: PChar; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation ): BOOL; stdcall; external 'kernel32' name 'CreateProcessA';
@@ -386,6 +388,13 @@ function GetTokenInformation(TokenHandle: THandle; TokenInformationClass: TToken
 function PathFindFileNameA(pPath: LPCSTR): LPCSTR; stdcall; external 'shlwapi.dll' name 'PathFindFileNameA';
 function CloseHandle(hObject:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'CloseHandle'; 
 function WaitForSingleObject(hHandle:HANDLE; dwMilliseconds:DWORD):DWORD; stdcall; external 'kernel32' name 'WaitForSingleObject';
+{ Массив хендлов для WaitForMultipleObjects. ВАЖНО: на FPC 3.2.2 (i386) external с
+  open-array параметром передаёт аргументы некорректно — используем указатель на
+  фиксированный массив, как в юните windows } 
+type TWOHandleArray = array[0..MAXIMUM_WAIT_OBJECTS-1] of THandle;
+     PWOHandleArray = ^TWOHandleArray;
+function WaitForMultipleObjects(nCount: DWORD; const handles: PWOHandleArray; waitAll: WINBOOL; timeoutMs: DWORD): DWORD; stdcall; external 'kernel32' name 'WaitForMultipleObjects';
+function GetExitCodeProcess(hProcess: THandle; var ExitCode: DWORD): BOOL; stdcall; external 'kernel32' name 'GetExitCodeProcess';
 function GetLastError:DWORD; stdcall; external 'kernel32' name 'GetLastError';
 function CreateFileMapping(hFile:HANDLE; lpFileMappingAttributes:LPSECURITY_ATTRIBUTES; flProtect:DWORD; dwMaximumSizeHigh:DWORD; dwMaximumSizeLow:DWORD; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'CreateFileMappingA'; 
 function OpenFileMapping(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'OpenFileMappingA';
@@ -408,8 +417,7 @@ procedure Error(exitCode: WORD);
 function IsRunningAsAdmin(): boolean;
 function WriteMMF(mmfHandle: THandle; mmfSize: integer; value: string): boolean;
 function ReadMMF(mmfHandle: THandle; const mmfSize: integer): string;
-function Waiting(event: THandle; const TIMEOUT: integer): boolean;
-function ShellExec(const command, parameters: string; noWindow: boolean): boolean;
+function ShellExec(const command, parameters: string; noWindow: boolean; out procHandle: THandle): boolean;
 function StringMode(mode: WORD): string;
 { Только то, что реально используется в run.pas — остальное из sysutils не тянем }
 function IntToStr(Value: QWord): string;
@@ -433,7 +441,7 @@ var
     fileExPtr: TFileExFunc;
     { Зерно генератора случайных чисел }
     RandSeed: Cardinal;
-    { Кэш результата IsRunningAsAdmin(): токен процесса не меняется за время работы */}
+    { Кэш результата IsRunningAsAdmin(): токен процесса не меняется за время работы }
     adminQueried: boolean;
     adminIsAdmin: boolean;
 
@@ -443,7 +451,7 @@ implementation
   перенесён сюда, чтобы не подключать unit sysutils (экономия размера бинарника) }
 
 const
-    { Константы генератора */}
+    { Константы генератора }
     MTWIST_N = 624;
     MTWIST_M = 397;
     MTWIST_UPPER_MASK = cardinal($80000000);
@@ -451,7 +459,7 @@ const
     MTWIST_MATRIX_A = cardinal($9908B0DF);
 
 var
-    { Служебное состояние генератора */}
+    { Служебное состояние генератора }
     OldRandSeed: Cardinal = 0;
     mt_state: array[0..MTWIST_N - 1] of Cardinal;
     mt_index: Cardinal = MTWIST_N + 1;
@@ -461,7 +469,7 @@ begin
     RandSeed := GetTickCount;
 end; { Randomize() }
 
-{$R-} { Отключаем range/overflow checking только для кода генератора */}
+{$R-} { Отключаем range/overflow checking только для кода генератора }
 {$Q-}
 
 function MTWistMixBits(u, v: Cardinal): Cardinal; inline;
@@ -471,7 +479,7 @@ end; { MTWistMixBits() }
 
 function MTWistTwist(u, v: Cardinal): Cardinal; inline;
 begin
-    { Конструкция в конце эквивалентна: if odd(v) then MTWIST_MATRIX_A else 0 */}
+    { Конструкция в конце эквивалентна: if odd(v) then MTWIST_MATRIX_A else 0 }
     result := (MTWistMixBits(u, v) shr 1) xor (cardinal(-(v and 1)) and MTWIST_MATRIX_A);
 end; { MTWistTwist() }
 
@@ -481,7 +489,7 @@ begin
     mt_state[0] := seed;
     for i := 1 to MTWIST_N - 1 do
         mt_state[i] := cardinal(1812433253) * (mt_state[i-1] xor (mt_state[i-1] shr 30)) + i;
-    { Состояние нужно обновить */}
+    { Состояние нужно обновить }
     mt_index := MTWIST_N;
 end; { MTWistInit() }
 
@@ -489,7 +497,7 @@ procedure MTWistUpdateState();
 var count: longint;
 begin
     { Первый цикл инициализует только N-M элементов (последний обрабатывается отдельно);
-      исходный код FPC так и делает — значение этого элемента не влияет на последующие числа */}
+      исходный код FPC так и делает — значение этого элемента не влияет на последующие числа }
     for count := 0 to MTWIST_N - MTWIST_M - 1 do
         mt_state[count] := mt_state[count + MTWIST_M] xor MTWistTwist(mt_state[count], mt_state[count+1]);
     for count := MTWIST_N - MTWIST_M to MTWIST_N - 2 do
@@ -505,7 +513,7 @@ begin
     inc(mt_index);
     if (RandSeed <> OldRandSeed) or (l_index >= MTWIST_N + 1) then begin
         { Зерно изменилось — инициализируем заново. RandSeed инвертируется, чтобы
-          следующий вызов Randomize() с тем же зерном снова переинициализировал состояние */}
+          следующий вызов Randomize() с тем же зерном снова переинициализировал состояние }
         MTWistInit(RandSeed);
         RandSeed := not (RandSeed);
         OldRandSeed := RandSeed;
@@ -525,12 +533,12 @@ end; { MTWistU32Rand() }
 
 function Random(l: longint): longint;
 begin
-    { Без этого при отрицательном l можно получить значение, равное l */}
+    { Без этого при отрицательном l можно получить значение, равное l }
     if l < 0 then inc(l);
     result := longint((Int64(MTWistU32Rand()) * l) shr 32);
 end; { Random() }
 
-{$R+} { Возвращаем range/overflow checking */}
+{$R+} { Возвращаем range/overflow checking }
 {$Q+}
 
 { Возвращает текстовое представление режима, как в параметрах }
@@ -566,13 +574,16 @@ begin
     MultiByteToWideChar(CP_ACP, 0, PAnsiChar(value), -1, PWideChar(result), len);
 end; { AnsiToWide() }
 
-{ Запуск процесса с повышением прав. Скрыто. ShellExecuteExW }
-function ShellExec(const command, parameters: string; noWindow: boolean): boolean;
+{ Запуск процесса с повышением прав. Скрыто. ShellExecuteExW.
+  Успех — в procHandle возвращается хендл запущенного процесса (владеет им вызывающий);
+  неудача — procHandle = 0 } 
+function ShellExec(const command, parameters: string; noWindow: boolean; out procHandle: THandle): boolean;
 var
     sei: TShellExecuteInfoW;
     wPath: WideString;
     wParams: WideString;
 begin
+    procHandle := 0;
     FillChar(sei, SizeOf(sei), 0);
     sei.cbSize := SizeOf(sei);
     sei.Wnd := 0;
@@ -596,30 +607,24 @@ begin
     if (not result) or (sei.hProcess = 0) then begin
         result := false;
     end else begin
-        { Дочерний процесс работает независимо — не держим ссылку на него }
-        CloseHandle(sei.hProcess);
+        { Хендл процесса передаём вызывающему: он будет ждать событие ИЛИ смерть дочернего }
+        procHandle := sei.hProcess;
     end;
 end; { ShellExec() }
 
-{ Ожидание события }
-function Waiting(event: THandle; const TIMEOUT: integer): boolean;
-begin
-    result := (WaitForSingleObject(event, TIMEOUT) = WAIT_OBJECT_0);
-end; { Waiting() }
-
-{ Точное совпадение для DWORD (GetCurrentProcessId и пр.): без неявного приведения к Longint */}
+{ Точное совпадение для DWORD (GetCurrentProcessId и пр.): без неявного приведения к Longint }
 function IntToStr(Value: DWORD): string;
 begin
     result := IntToStr(QWord(Value));
 end; { IntToStr(Value: DWORD) }
 
-{ QWord — базовая версия, остальные перегрузки не используются в проекте */}
+{ QWord — базовая версия, остальные перегрузки не используются в проекте }
 function IntToStr(Value: QWord): string;
 begin
     System.Str(Value, result);
 end; { IntToStr(Value: QWord) }
 
-{ Цифры для IntToHex */}
+{ Цифры для IntToHex }
 const
     HexDigits: array[0..15] of Char = '0123456789ABCDEF';
 
@@ -639,7 +644,7 @@ begin
 end; { IntToHex() }
 
 { Запустить команду. creationFlags — флаги CreateProcess: обычно CREATE_NEW_CONSOLE,
-  при -w — CREATE_NO_WINDOW (консоль у дочернего процесса не создаётся вовсе) */}
+  при -w — CREATE_NO_WINDOW (консоль у дочернего процесса не создаётся вовсе) }
 function RunCommand(creationFlags: DWORD; mode: WORD; commandLine: string): boolean;
 var
     si: TStartupInfo;
@@ -715,27 +720,27 @@ begin
     result := q + value + q;
 end; { Quoted() }
 
-{ Проверяет, есть ли у процесса права администратора */}
+{ Проверяет, есть ли у процесса права администратора }
 function IsRunningAsAdmin(): Boolean;
 var
     hToken: THandle;
     elevation: TOKEN_ELEVATION;
     dwSize: DWORD;
 begin
-    { Результат кэшируется: повторные вызовы не открывают токен заново */}
+    { Результат кэшируется: повторные вызовы не открывают токен заново }
     if adminQueried then begin
         Result := adminIsAdmin;
         exit();
     end;
     adminQueried := True;
     Result := False;
-    { Открываем токен текущего процесса с правом на запрос информации */}
+    { Открываем токен текущего процесса с правом на запрос информации }
     if not OpenProcessToken(GetCurrentProcess, TOKEN_QUERY, hToken) then
         Error(ERROR_CANT_OPEN_SECURITY_TOKEN);
     dwSize := SizeOf(TOKEN_ELEVATION);
     { Запрашиваем информацию об уровне повышения привилегий.
       TokenElevation (значение 20) возвращает структуру TOKEN_ELEVATION,
-      где поле TokenIsElevated = True, если токен повышенный */}
+      где поле TokenIsElevated = True, если токен повышенный }
     if GetTokenInformation(hToken, TokenElevation, @elevation, dwSize, dwSize) then
         Result := boolean(elevation.TokenIsElevated);
     CloseHandle(hToken);
