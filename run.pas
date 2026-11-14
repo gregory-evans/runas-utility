@@ -82,7 +82,8 @@ begin
         app.mmfName := MMF_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
         VLog('creating mmf ' + app.mmfName);
         { Создадим файл отображаемый в память (mmf) и поместим туда строку запуска }
-        app.mmfHandle := CreateFileMapping(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, MMF_SIZE, pchar(app.mmfName));
+        app.mmfHandle := CreateFileMappingW(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, MMF_SIZE,
+                                            PWideChar(AnsiToWide(app.mmfName)));
         if app.mmfHandle = 0 then Error(ERROR_CREATE_MMF);
         try
             if not WriteMMF(app.mmfHandle, MMF_SIZE, app.commandLine) then Error(ERROR_CANT_WRITE_MMF);
@@ -90,7 +91,7 @@ begin
             app.eventName := EVENT_PREFIX + inttostr(GetCurrentProcessId()) + '_' + suffix;
             VLog('creating event ' + app.eventName);
             { Создаём событие в НЕСИГНАЛЬНОМ состоянии (AutoReset = False, Initial = False) }
-            app.eventHandle := CreateEvent(nil, False, False, pchar(app.eventName));
+            app.eventHandle := CreateEventW(nil, False, False, PWideChar(AnsiToWide(app.eventName)));
             if app.eventHandle = 0 then Error(ERROR_CREATE_EVENT);
             try
                 { Запустим процесс. Себя через ShellExecuteEx. С необходимыми параметрами.
@@ -215,7 +216,7 @@ begin
     app.noWindow := (ParamCount >= 5) and (ParamStr(5) = '1');
     { Откроем и прочитаем mmf }
     VLog('opening mmf ' + app.mmfName);
-    app.mmfHandle := OpenFileMapping(FILE_MAP_READ, False, pchar(app.mmfName));
+    app.mmfHandle := OpenFileMappingW(FILE_MAP_READ, False, PWideChar(AnsiToWide(app.mmfName)));
     if app.mmfHandle = 0 then Error(ERROR_OPEN_MMF); 
     app.commandLine := ReadMMF(app.mmfHandle, MMF_SIZE);
     VLog('command read from mmf: ' + app.commandLine);
@@ -225,7 +226,7 @@ begin
     { Установим Event }
     VLog('signaling event ' + app.eventName);
     { Открываем существующий событие, созданный родителем }
-    app.eventHandle := OpenEvent(EVENT_MODIFY_STATE, False, pchar(app.eventName));
+    app.eventHandle := OpenEventW(EVENT_MODIFY_STATE, False, PWideChar(AnsiToWide(app.eventName)));
     if app.eventHandle = 0 then Error(ERROR_OPEN_EVENT);
     if not SetEvent(app.eventHandle) then Error(ERROR_SET_EVENT);
     { Освободим event }

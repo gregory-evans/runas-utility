@@ -49,17 +49,12 @@ type
     _PROCESS_INFORMATION = PROCESS_INFORMATION;
     TPROCESSINFORMATION = PROCESS_INFORMATION;
     PPROCESSINFORMATION = ^PROCESS_INFORMATION;
+    { Wide-вариант STARTUPINFO: все строковые поля — wide (используем только CreateProcessW) }
     STARTUPINFO = record
         cb : DWORD;
-        {$ifdef Unicode}
-            lpReserved : LPWSTR;
-            lpDesktop : LPWSTR;
-            lpTitle : LPWSTR;
-        {$else}
-            lpReserved : LPSTR;
-            lpDesktop : LPSTR;
-            lpTitle : LPSTR;
-        {$endif} 
+        lpReserved : LPWSTR;
+        lpDesktop : LPWSTR;
+        lpTitle : LPWSTR;
         dwX : DWORD;
         dwY : DWORD;
         dwXSize : DWORD;
@@ -265,6 +260,7 @@ const
     INVALID_FILE_SIZE    = DWORD(-1);
     INVALID_SET_FILE_POINTER = DWORD(-1);
     INVALID_FILE_ATTRIBUTES  = DWORD(-1);
+    FILE_ATTRIBUTE_DIRECTORY = $10;
     { CreateFileMapping, VirtualAlloc, VirtualFree, VirtualProtect  }
     SEC_COMMIT = 134217728;
     SEC_IMAGE = 16777216;
@@ -379,13 +375,18 @@ const
     TXT_ELEVATED_CHILD_FAILED = 'Elevation failed: the elevated process terminated before reading the command.';
 
 
-function CreateProcess(lpApplicationName: PChar; lpCommandLine: PChar; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: PChar; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation ): BOOL; stdcall; external 'kernel32' name 'CreateProcessA';
+{ Wide-версии WinAPI: строковые аргументы — LPWSTR (имена MMF/Event, командная строка) }
+function CreateProcessW(lpApplicationName: LPCWSTR; lpCommandLine: LPWSTR; lpProcessAttributes, lpThreadAttributes: PSecurityAttributes; bInheritHandles: BOOL; dwCreationFlags: DWORD; lpEnvironment: Pointer; lpCurrentDirectory: LPCWSTR; const lpStartupInfo: TStartupInfo; var lpProcessInformation: TProcessInformation): BOOL; stdcall; external 'kernel32' name 'CreateProcessW';
+function CreateFileMappingW(hFile: HANDLE; lpFileMappingAttributes: LPSECURITY_ATTRIBUTES; flProtect: DWORD; dwMaximumSizeHigh: DWORD; dwMaximumSizeLow: DWORD; lpName: LPCWSTR): HANDLE; stdcall; external 'kernel32' name 'CreateFileMappingW';
+function OpenFileMappingW(dwDesiredAccess: DWORD; bInheritHandle: WINBOOL; lpName: LPCWSTR): HANDLE; stdcall; external 'kernel32' name 'OpenFileMappingW';
+function CreateEventW(lpEventAttributes: LPSECURITY_ATTRIBUTES; bManualReset: WINBOOL; bInitialState: WINBOOL; lpName: LPCWSTR): HANDLE; stdcall; external 'kernel32' name 'CreateEventW';
+function OpenEventW(dwDesiredAccess: DWORD; bInheritHandle: WINBOOL; lpName: LPCWSTR): HANDLE; stdcall; external 'kernel32' name 'OpenEventW';
+function GetFileAttributesW(lpFileName: LPCWSTR): DWORD; stdcall; external 'kernel32' name 'GetFileAttributesW';
 function ShellExecuteExW(lpExecInfo: LPSHELLEXECUTEINFOW):Bool;stdcall;external 'shell32.dll' name 'ShellExecuteExW';
 function OpenProcessToken( ProcessHandle: THandle; DesiredAccess: DWORD; var TokenHandle: THandle): BOOL; stdcall; external 'advapi32' name 'OpenProcessToken';
 function GetCurrentProcess:HANDLE; stdcall; external 'kernel32' name 'GetCurrentProcess';
 function GetCurrentProcessId:DWORD; stdcall; external 'kernel32' name 'GetCurrentProcessId';
 function GetTokenInformation(TokenHandle: THandle; TokenInformationClass: TTokenInformationClass; TokenInformation: Pointer; TokenInformationLength: DWORD; var ReturnLength: DWORD): BOOL; stdcall; external 'advapi32' name 'GetTokenInformation';
-function PathFindFileNameA(pPath: LPCSTR): LPCSTR; stdcall; external 'shlwapi.dll' name 'PathFindFileNameA';
 function CloseHandle(hObject:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'CloseHandle'; 
 function WaitForSingleObject(hHandle:HANDLE; dwMilliseconds:DWORD):DWORD; stdcall; external 'kernel32' name 'WaitForSingleObject';
 { Массив хендлов для WaitForMultipleObjects. ВАЖНО: на FPC 3.2.2 (i386) external с
@@ -396,15 +397,12 @@ type TWOHandleArray = array[0..MAXIMUM_WAIT_OBJECTS-1] of THandle;
 function WaitForMultipleObjects(nCount: DWORD; const handles: PWOHandleArray; waitAll: WINBOOL; timeoutMs: DWORD): DWORD; stdcall; external 'kernel32' name 'WaitForMultipleObjects';
 function GetExitCodeProcess(hProcess: THandle; var ExitCode: DWORD): BOOL; stdcall; external 'kernel32' name 'GetExitCodeProcess';
 function GetLastError:DWORD; stdcall; external 'kernel32' name 'GetLastError';
-function CreateFileMapping(hFile:HANDLE; lpFileMappingAttributes:LPSECURITY_ATTRIBUTES; flProtect:DWORD; dwMaximumSizeHigh:DWORD; dwMaximumSizeLow:DWORD; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'CreateFileMappingA'; 
-function OpenFileMapping(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'OpenFileMappingA';
+
 function MapViewOfFile(hFileMappingObject:HANDLE; dwDesiredAccess:DWORD; dwFileOffsetHigh:DWORD; dwFileOffsetLow:DWORD; dwNumberOfBytesToMap:SIZE_T):LPVOID; stdcall; external 'kernel32' name 'MapViewOfFile';
 function UnmapViewOfFile(lpBaseAddress:LPVOID):WINBOOL; stdcall; external 'kernel32' name 'UnmapViewOfFile';
-function CreateEvent(lpEventAttributes:LPSECURITY_ATTRIBUTES; bManualReset:WINBOOL; bInitialState:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'CreateEventA'; 
-function OpenEvent(dwDesiredAccess:DWORD; bInheritHandle:WINBOOL; lpName:LPCSTR):HANDLE; stdcall; external 'kernel32' name 'OpenEventA';
+
 function SetEvent(hEvent:HANDLE):WINBOOL; stdcall; external 'kernel32' name 'SetEvent'; 
-function GetModuleHandleA(lpModuleName: PChar): THandle; stdcall; external 'kernel32' name 'GetModuleHandleA';
-function GetProcAddress(hModule: THandle; lpProcName: PChar): Pointer; stdcall; external 'kernel32' name 'GetProcAddress';
+
 { Все WinAPI-функции — stdcall. Явно указываем, чтобы 32-битная сборка
   корректно очищала стек (в 64-битной разницы нет) }
 function GetTickCount: DWORD; stdcall; external 'kernel32' name 'GetTickCount';
@@ -431,14 +429,7 @@ function ProgramExists(commandLine: string): boolean;
 function Random(l: longint): longint;
 procedure Randomize;
 
-type
-    { Функция kernel32 FileExistsA }
-    TFileExFunc = function(FileName: PChar): WINBOOL; stdcall;
 var
-    { Указатель на FileExistsA. Разрешается лениво через GetProcAddress:
-      в kernel32 старых систем этого экспорта может не быть, и статический
-      импорт тогда роняет процесс ещё до main (проверено на этой машине) }
-    fileExPtr: TFileExFunc;
     { Зерно генератора случайных чисел }
     RandSeed: Cardinal;
     { Кэш результата IsRunningAsAdmin(): токен процесса не меняется за время работы }
@@ -654,8 +645,9 @@ begin
     si.cb := SizeOf(si);
     si.dwFlags := STARTF_USESHOWWINDOW;
     si.wShowWindow := mode;
-    result := CreateProcess(nil, PChar(commandLine), nil, nil, False,
-                            creationFlags, nil, nil, si, pi);
+    { Командная строка — CP_ACP, для CreateProcessW переводим в wide явно }
+    result := CreateProcessW(nil, PWideChar(AnsiToWide(commandLine)), nil, nil, False,
+                             creationFlags, nil, nil, si, pi);
 end; { RunCommand() }
 
 { Вывести помошь и выйти с кодом возврата }
@@ -665,10 +657,16 @@ begin
     Halt(exitCode);
 end; { PrintHelpAndExit() }
 
-{ Вернуть имя файла из полного пути }
+{ Вернуть имя файла из полного пути (часть после последнего разделителя) }
 function GetFileName(fullPath: string): string;
+var i: Integer;
 begin
-    result := string(PathFindFileNameA(PAnsiChar(fullPath)))
+    for i := Length(fullPath) downto 1 do
+        if (fullPath[i] = '\') or (fullPath[i] = '/') then begin
+            result := Copy(fullPath, i + 1);
+            Exit;
+        end; {if}
+    result := fullPath;
 end; { GetFileName() }
 
 { Вывести ошибку и выйти }
@@ -695,19 +693,21 @@ begin
     end;
 end; { GetProgramPart() }
 
-{ Проверяет существование программы.
-  Голое имя без разделителей не проверяем — его разрешит через PATH сам CreateProcess }
+{ Проверяет существование программы через GetFileAttributesW.
+  Голое имя без разделителей не проверяем — его разрешит через PATH сам CreateProcess } 
 function ProgramExists(commandLine: string): boolean;
-var part: string;
+var
+    part: string;
+    attr: DWORD;
 begin
     part := GetProgramPart(commandLine);
     if (Pos('\', part) = 0) and (Pos('/', part) = 0) then begin
         { Голое имя — разрешит через PATH сам CreateProcess }
         result := True;
     end else begin
-        if (fileExPtr = nil) then fileExPtr := TFileExFunc(GetProcAddress(GetModuleHandleA(pchar('kernel32')), 'FileExistsA'));
-        if (fileExPtr = nil) then result := True { API недоступен — пусть решает CreateProcess }
-            else result := fileExPtr(pchar(part));
+        attr := GetFileAttributesW(PWideChar(AnsiToWide(part)));
+        if attr = INVALID_FILE_ATTRIBUTES then result := False
+            else result := (attr and FILE_ATTRIBUTE_DIRECTORY) = 0; { каталог не запускать }
     end;
 end; { ProgramExists() }
 

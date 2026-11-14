@@ -87,11 +87,11 @@ Tests are batch scripts that call `run.exe` directly and check exit codes / outp
 - **Free Pascal ObjFPC mode** with `{$H+}` (AnsiString, system code page CP_ACP — not UTF-8)
 - Custom Windows API declarations in `includes.pas` rather than using standard RTL units — keeps the binary self-contained and minimal
 - All external WinAPI declarations carry an explicit `stdcall` calling convention (required for correct i386-Win32 builds; without it `CreateProcessA` crashes with Runtime error 216)
-- ANSI (`*A`) versions of WinAPI are used for MMF/Event naming and process creation; WideChar (`*W`) for `ShellExecuteExW`, fed by the explicit `AnsiToWide()` conversion (`MultiByteToWideChar(CP_ACP, ...)`)
+- All name/command-line WinAPI calls use wide versions (`*W`): `ShellExecuteExW`, `CreateProcessW`, `CreateFileMappingW`/`OpenFileMappingW`, `CreateEventW`/`OpenEventW`; CP_ACP strings are fed via the explicit `AnsiToWide()` conversion (`MultiByteToWideChar(CP_ACP, ...)`). No shlwapi dependency (file-name extraction implemented in `GetFileName()`)
 - Error handling via `Halt(errorCode)` with custom codes 101–119 defined in `includes.pas`
 - **FPC 3.2.2 ABI pitfall:** an external function declared with an open-array parameter (`const handles: array of THandle`) silently passes arguments incorrectly on i386 — `WaitForMultipleObjects` is therefore declared with a pointer to a fixed-size array (`PWOHandleArray`, as in the RTL `windows` unit) and called with `@arr`
 - No external libraries or RTL dependencies beyond `System`: even `Random`/`Randomize` (Mersenne Twister, algorithm taken from FPC's sysutils) and the needed `IntToStr`/`IntToHex` overloads are implemented in `includes.pas`, so unit `sysutils` is not linked into the binary
-- Existence check before launch: `ProgramExists()` + code 118; the kernel32 `FileExistsA` export is resolved lazily via `GetProcAddress` because it is absent on this legacy system (a static import would kill the process at load time)
+- Existence check before launch: `ProgramExists()` + code 118, implemented with `GetFileAttributesW` (`INVALID_FILE_ATTRIBUTES` → missing; directory also rejected). Note: an earlier version tried to lazily resolve a kernel32 export named `FileExistsA`, but no such WinAPI export exists on any Windows system (it is an FPC RTL name), so the check was silently skipped everywhere
 - Application state is kept in a single record `TApp` (`app` is the only global variable); all handles are initialised to zero
 
 ## Known Limitations
@@ -100,7 +100,7 @@ None at present. Previously documented issues are all resolved (details in `hist
 - UAC denial is detected (`SEE_MASK_NOCLOSEPROCESS` + `hProcess` check, code 117); if the elevated copy dies before signaling, the parent fails fast with code 119 instead of waiting out the timeout
 - MMF/Event names carry a random suffix, not just PID
 - Handles are released via nested `try..finally` on every failure path
-- Elevation uses wide-character APIs fed by explicit CP_ACP conversion (`AnsiToWide()`); remaining `*A` calls (CreateProcess, MMF/Event names) still rely on the system code page — see README recommendation 4
+- All name/command-line WinAPI calls are wide (`*W`) and fed by explicit CP_ACP conversion (`AnsiToWide()`), so Cyrillic paths work in both direct and elevated launches
 
 ## .gitignore
 

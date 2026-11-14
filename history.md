@@ -98,11 +98,17 @@
 - Удалена неиспользуемая `Waiting()`; в README добавлены строки кодов 118 и 119 (118 отсутствовал в таблице), пункт 2 рекомендаций закрыт полностью. Новый Тест 6 в test_elevation.bat (регресс успеха нового ожидания).
 - Проверено: scratch-сборка с несозданным MMF — элевированный дочерний умирал до сигнала, родитель выходил с кодом 119 за ~40 мс; production `-v -a cmd ...` → код 0, «event signaled», цель отработала с правами.
 
+**18. Перевод WinAPI на wide (`*W`) + реальный `ProgramExists()` (`includes.pas`, `run.pas`)**
+- Все вызовы с именами/командными строками переведены на wide: `CreateProcessW` (wide-вариант STARTUPINFO), `CreateFileMappingW`/`OpenFileMappingW`, `CreateEventW`/`OpenEventW`; имена MMF/Event и командная строка переводятся через существующий `AnsiToWide()`.
+- Убрана зависимость от shlwapi: `GetFileName()` реализован вручную (часть пути после последнего разделителя).
+- Исправлен латентный баг пункта 6: kernel32 не экспортирует `FileExistsA` ни на одной системе (это имя из RTL FPC, а не WinAPI), поэтому прежняя проверка через `GetProcAddress` всегда пропускалась. Теперь `ProgramExists()` использует реальный `GetFileAttributesW`: `INVALID_FILE_ATTRIBUTES` → файла нет; каталог тоже отклоняется. Убраны `GetModuleHandleA`, `GetProcAddress`, `TFileExFunc`/`fileExPtr`.
+- Проверено: несуществующий путь с разделителем теперь даёт код 118 (ранее — 104); кириллическое имя файла (`тест кириллицы.cmd`) корректно запускается и в обычном, и в элевированном режиме; все тестовые сьюты зелёные.
+
 ### Файлы
 
 | Файл | Изменение |
 |---|---|
-| `includes.pas` | `AnsiToWide()`, коды 116/117/118, `stdcall` для всех WinAPI, `ShellExec`: `SEE_MASK_NOCLOSEPROCESS` + проверка `hProcess` (+ `SEE_MASK_NO_CONSOLE` при `-w`); перегрузка `IntToStr(Value: DWORD)`; `GetProgramPart()`/`ProgramExists()` с ленивым разрешением `FileExistsA`; встроенный генератор случайных чисел (Mersenne Twister) и `IntToStr`/`IntToHex` вместо unit sysutils; `RunCommand(creationFlags, ...)` |
+| `includes.pas` | `AnsiToWide()`, коды 116–119, `stdcall` для всех WinAPI, `ShellExec`: `SEE_MASK_NOCLOSEPROCESS` + проверка `hProcess` (+ `SEE_MASK_NO_CONSOLE` при `-w`) с out-хендлом процесса; перегрузка `IntToStr(Value: DWORD)`; `GetProgramPart()`/`ProgramExists()` через `GetFileAttributesW`; встроенный генератор случайных чисел (Mersenne Twister) и `IntToStr`/`IntToHex` вместо unit sysutils; `RunCommand(creationFlags, ...)`; все WinAPI с именами/командными строками — wide (`*W`) |
 | `run.pas` | глобальная `commandLine`, новый парсинг флагов в `NormalStart`, код 116; при неудаче элевации — сообщение + код 117; `Randomize` при старте, `UniqueSuffix()` в именах MMF/Event; общая процедура `RunTarget()`; состояние собрано в структуру `TApp` (`app`); флаг `-w` (поле `noWindow`, передача 5-м аргументом элевированному процессу) |
 | `tests/run_tests.bat` | фикс `%TMPFILE%`, цикл ожидания Test 9, пайп для проверки help, опечатка в отчёте |
 | `tests/test_parameters.bat` | фикс `%TMPFILE%`, ожидание файла Test 2, код 116 (Test 7), новые Test 11–12; Тест 13 (запуск `-w`); Тесты 14–15 (`-v`, длинные алиасы) |
